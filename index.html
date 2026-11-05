@@ -117,8 +117,8 @@
       <b>Space</b><span>Nhảy (giữ để nhảy liên tục, lắc chuột + A/D để bunny hop)</span>
       <b>C</b><span>Ngồi (ngồi lúc đang nhảy để lên chỗ cao)</span>
       <b>1 / 2 / 3 / 4 / 5</b><span>Dao / Súng lục / Bom / Súng bắn tỉa / Rìu · Q: vũ khí trước</span>
-      <b>Chuột trái</b><span>Dao: chém (34) · Rìu: bổ (50) · Súng lục: bắn (22, đầu 60) · Bắn tỉa: 80, vào đầu chết ngay · Bom: ném</span>
-      <b>Chuột phải</b><span>Dao: đâm mạnh (70, sau lưng = hạ gục) · Rìu: bổ mạnh (95) · Súng: giữ để ngắm (bắn tỉa: ống ngắm zoom xa)</span>
+      <b>Chuột trái</b><span>Dao: chém (34) · Rìu: chém ngang (50) · Súng lục: bắn (22, đầu 60) · Bắn tỉa: 80, vào đầu chết ngay · Bom: ném</span>
+      <b>Chuột phải</b><span>Dao: đâm mạnh (70, sau lưng = hạ gục) · Rìu: bổ dọc mạnh (95) · Súng: giữ để ngắm (bắn tỉa: ống ngắm zoom xa)</span>
       <b>Trúng đầu</b><span>Dao và rìu chém/đâm trúng đầu = chết ngay (đặt tâm ngắm lên đầu đối thủ)</span>
       <b>E / Chuột trái (bom)</b><span>Giữ để lấy đà, thả để ném — giữ càng lâu ném càng xa (nổ sau 1.8 giây, bán kính 5m)</span>
       <b>R</b><span>Nạp đạn</span>
@@ -175,7 +175,7 @@ const STAND_H = 1.8, CROUCH_H = 1.1, RADIUS = 0.3, MAX_HP = 100, RESPAWN_MS = 30
 const ATTACKS = {
   slash: { dmg: 34, back: 65, head: 200, range: 2.0, width: 0.5, delay: 120, cd: 420 },
   stab:  { dmg: 70, back: 200, head: 200, range: 1.75, width: 0.25, delay: 320, cd: 1050 },
-  chop:  { dmg: 50, back: 100, head: 200, range: 2.1, width: 0.35, delay: 260, cd: 750 },   // rìu: bổ
+  chop:  { dmg: 50, back: 100, head: 200, range: 2.1, width: 0.5, delay: 260, cd: 750 },    // rìu: chém ngang
   heavy: { dmg: 95, back: 200, head: 200, range: 2.2, width: 0.3, delay: 520, cd: 1400 },  // rìu: bổ mạnh
 };
 // zoom: số độ FOV giảm khi ngắm. Súng bắn tỉa: vào đầu = chết ngay
@@ -928,7 +928,7 @@ function makeAxe() {
   sh.moveTo(0.03, 0.035); sh.lineTo(-0.05, 0.03); sh.quadraticCurveTo(-0.11, 0.06, -0.15, 0.1);
   sh.quadraticCurveTo(-0.18, 0, -0.15, -0.1); sh.quadraticCurveTo(-0.11, -0.06, -0.05, -0.03); sh.lineTo(0.03, -0.035); sh.lineTo(0.03, 0.035);
   const geo = new THREE.ExtrudeGeometry(sh, { depth: 0.026, bevelEnabled: true, bevelThickness: 0.005, bevelSize: 0.004, bevelSegments: 1 });
-  geo.translate(0, 0, -0.013); geo.rotateY(Math.PI / 2); // lưỡi nằm trong mặt phẳng YZ, hướng -Z
+  geo.translate(0, 0, -0.013); geo.rotateY(-Math.PI / 2); // lưỡi nằm trong mặt phẳng YZ, hướng -Z
   const head = new THREE.Mesh(geo, steelMat); head.position.y = 0.42;
   const edge = new THREE.Mesh(new THREE.BoxGeometry(0.008, 0.19, 0.012), new THREE.MeshStandardMaterial({ color: 0xf2f2f2, metalness: 1, roughness: 0.2, envMap: envTex }));
   edge.position.set(0, 0.42, -0.163);
@@ -1074,7 +1074,7 @@ const AV_ANIMS = {
   stab: { dur: 1.0, keys: [[0, {}], [0.25, { ra_x: -0.7, b_y: 0.35 }], [0.36, { ra_x: 1.1, b_y: -0.15, lean: 0.3 }], [0.55, { ra_x: 1.1, b_y: -0.15, lean: 0.3 }], [1.0, {}]] },
   shoot: { dur: 0.16, keys: [[0, {}], [0.03, { ra_x: 0.35, h_x: 0.05 }], [0.16, {}]] },
   reload: { dur: 1.6, keys: [[0, {}], [0.3, { ra_x: -0.6, la_x: 1.0, la_z: 0.45 }], [1.3, { ra_x: -0.6, la_x: 1.0, la_z: 0.45 }], [1.6, {}]] },
-  chop: { dur: 0.75, keys: [[0, {}], [0.16, { ra_x: 2.1, b_y: 0.15, lean: -0.12 }], [0.3, { ra_x: 0.25, lean: 0.3 }], [0.75, {}]] },
+  chop: { dur: 0.75, keys: [[0, {}], [0.14, { ra_x: 0.75, ra_z: 1.35, b_y: 0.45 }], [0.3, { ra_x: 1.0, ra_z: -1.05, b_y: -0.55 }], [0.75, {}]] },
   heavy: { dur: 1.4, keys: [[0, {}], [0.38, { ra_x: 2.5, ra_z: 0.3, b_y: 0.35, lean: -0.2 }], [0.55, { ra_x: 0.2, b_y: -0.25, lean: 0.4 }], [0.85, { ra_x: 0.2, lean: 0.35 }], [1.4, {}]] },
   throw: { dur: 0.6, keys: [[0, {}], [0.2, { ra_x: -1.0, ra_z: 0.5, b_y: 0.35 }], [0.34, { ra_x: 1.5, b_y: -0.3, lean: 0.2 }], [0.6, {}]] },
   inspect: { dur: 2.2, keys: [[0, {}], [0.35, { ra_x: 0.6, ra_z: -0.5, h_x: -0.45 }], [1.8, { ra_x: 0.6, ra_z: -0.5, h_x: -0.45 }], [2.2, {}]], fn: (t, o) => { if (t > 0.35 && t < 1.8) o.spin = (t - 0.35) * 8.7; } },
@@ -1177,7 +1177,7 @@ const VM_ANIMS = {
   reload: { dur: 1.6, keys: [[0, {}], [0.3, { py: -0.1, rx: -0.45, rz: 0.5, px: -0.04 }], [0.75, { py: -0.13, rx: -0.55, rz: 0.5, px: -0.04 }], [1.15, { py: -0.06, rx: -0.2, rz: 0.25 }], [1.6, {}]] },
   sfire: { dur: 0.3, keys: [[0, {}], [0.04, { pz: 0.1, py: 0.02, rx: 0.3 }], [0.3, {}]] },
   bolt: { dur: 1.0, keys: [[0, {}], [0.2, { rz: 0.35, py: -0.03, px: -0.02 }], [0.45, { rz: 0.35, py: -0.03, pz: 0.05 }], [0.7, { rz: 0.3, py: -0.03 }], [1.0, {}]] },
-  chop: { dur: 0.75, keys: [[0, {}], [0.15, { py: 0.1, pz: 0.12, px: 0.02, rx: 0.85, rz: -0.15 }], [0.28, { py: -0.16, pz: -0.22, px: -0.08, rx: -1.15, rz: 0.1 }], [0.42, { py: -0.14, pz: -0.18, px: -0.07, rx: -1.0 }], [0.75, {}]] },
+  chop: { dur: 0.75, keys: [[0, {}], [0.14, { px: 0.16, py: 0.13, pz: 0.08, rx: -0.9, ry: -1.1, rz: 0.4 }], [0.3, { px: -0.22, py: 0.12, pz: -0.1, rx: -0.9, ry: 1.15, rz: 0.4 }], [0.42, { px: -0.2, py: 0.1, pz: -0.08, rx: -0.8, ry: 1.05, rz: 0.35 }], [0.75, {}]] },
   heavy: { dur: 1.4, keys: [[0, {}], [0.4, { py: 0.16, pz: 0.18, px: 0.06, rx: 1.15, rz: -0.35, ry: 0.2 }], [0.52, { py: -0.2, pz: -0.28, px: -0.12, rx: -1.35, rz: 0.2 }], [0.8, { py: -0.18, pz: -0.24, px: -0.1, rx: -1.2, rz: 0.15 }], [1.4, {}]] },
   throw: { dur: 0.6, keys: [[0, {}], [0.2, { py: 0.1, pz: 0.16, px: 0.05, rx: 0.7 }], [0.32, { py: 0.03, pz: -0.3, rx: -0.6 }], [0.45, { py: -0.3, pz: -0.1 }], [0.6, {}]] },
 };
