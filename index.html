@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Knife Arena</title>
+<style>
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; overflow: hidden; background: #111; font-family: "Segoe UI", system-ui, sans-serif; color: #fff; user-select: none; }
+  canvas { display: block; }
+  .hidden { display: none !important; }
+
+  #menu { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; background: rgba(8, 10, 14, .72); z-index: 20; }
+  .panel { width: min(460px, calc(100vw - 32px)); background: #171b22; border: 1px solid #2c3340; border-radius: 12px; padding: 26px 26px 20px; box-shadow: 0 20px 60px rgba(0,0,0,.5); }
+  .panel h1 { margin: 0 0 4px; font-size: 34px; letter-spacing: 3px; color: #f2f2f2; }
+  .panel h1 span { color: #e0463a; }
+  .panel .sub { margin: 0 0 18px; color: #8a94a6; font-size: 14px; }
+  .panel label { display: block; font-size: 13px; color: #aab3c2; margin: 10px 0 4px; }
+  .panel input[type=text] { width: 100%; padding: 10px 12px; font-size: 16px; border-radius: 8px; border: 1px solid #39414f; background: #0f1217; color: #fff; outline: none; }
+  .panel input[type=text]:focus { border-color: #e0463a; }
+  .panel input[type=range] { width: 100%; accent-color: #e0463a; }
+  #play { margin-top: 16px; width: 100%; padding: 12px; font-size: 18px; font-weight: 700; letter-spacing: 1px; border: 0; border-radius: 8px; background: #e0463a; color: #fff; cursor: pointer; }
+  #play:hover { background: #f05548; }
+  #play:disabled { background: #555; cursor: default; }
+  #status { margin-top: 8px; font-size: 13px; color: #8a94a6; min-height: 18px; }
+  .keys { margin-top: 14px; display: grid; grid-template-columns: auto 1fr; gap: 3px 12px; font-size: 13px; color: #c3cad6; }
+  .keys b { color: #fff; background: #262c37; border-radius: 4px; padding: 0 6px; font-weight: 600; text-align: center; }
+
+  #hud { position: fixed; inset: 0; pointer-events: none; z-index: 10; }
+  #cross { position: absolute; left: 50%; top: 50%; width: 18px; height: 18px; transform: translate(-50%, -50%); }
+  #cross::before, #cross::after { content: ""; position: absolute; background: rgba(255,255,255,.85); box-shadow: 0 0 2px #000; }
+  #cross::before { left: 8px; top: 2px; width: 2px; height: 14px; }
+  #cross::after { top: 8px; left: 2px; height: 2px; width: 14px; }
+  #hitmark { position: absolute; left: 50%; top: 50%; width: 30px; height: 30px; transform: translate(-50%, -50%) rotate(45deg); opacity: 0; transition: opacity .15s; }
+  #hitmark::before, #hitmark::after { content: ""; position: absolute; background: #fff; }
+  #hitmark::before { left: 14px; top: 0; width: 2px; height: 30px; clip-path: polygon(0 0,100% 0,100% 35%,0 35%,0 65%,100% 65%,100% 100%,0 100%); }
+  #hitmark::after { top: 14px; left: 0; height: 2px; width: 30px; clip-path: polygon(0 0,35% 0,35% 100%,0 100%,0 0,65% 0,100% 0,100% 100%,65% 100%); }
+  #hitmark.back::before, #hitmark.back::after { background: #ff3b30; }
+  #hp { position: absolute; left: 24px; bottom: 22px; font-size: 40px; font-weight: 800; text-shadow: 0 2px 6px rgba(0,0,0,.6); }
+  #hp small { font-size: 15px; font-weight: 600; color: #ddd; margin-left: 4px; }
+  #hpbar { width: 200px; height: 8px; background: rgba(0,0,0,.5); border-radius: 4px; overflow: hidden; margin-top: 2px; }
+  #hpfill { height: 100%; width: 100%; background: #4cd964; transition: width .15s; }
+  #kd { position: absolute; right: 24px; bottom: 22px; font-size: 20px; font-weight: 700; text-shadow: 0 2px 6px rgba(0,0,0,.6); }
+  #feed { position: absolute; right: 16px; top: 14px; display: flex; flex-direction: column; gap: 4px; align-items: flex-end; }
+  #feed div { background: rgba(0,0,0,.55); padding: 4px 10px; border-radius: 4px; font-size: 14px; }
+  #feed .me { border: 1px solid #e0463a; }
+  #chatlog { position: absolute; left: 16px; bottom: 120px; width: min(420px, 60vw); display: flex; flex-direction: column; gap: 2px; font-size: 14px; text-shadow: 0 1px 3px #000; }
+  #chatlog div { transition: opacity 1s; }
+  #chatlog .sys { color: #ffd479; }
+  #chatin { position: absolute; left: 16px; bottom: 88px; width: min(420px, 60vw); padding: 6px 10px; font-size: 15px; border-radius: 6px; border: 1px solid #555; background: rgba(0,0,0,.7); color: #fff; outline: none; pointer-events: auto; }
+  #flash { position: absolute; inset: 0; background: radial-gradient(ellipse at center, transparent 40%, rgba(200,0,0,.6)); opacity: 0; transition: opacity .35s; }
+  #dead { position: absolute; left: 50%; top: 36%; transform: translateX(-50%); text-align: center; font-size: 26px; font-weight: 700; text-shadow: 0 2px 8px #000; }
+  #dead small { display: block; font-size: 16px; font-weight: 400; color: #ccc; margin-top: 6px; }
+  #center { position: absolute; left: 50%; top: 60%; transform: translateX(-50%); font-size: 22px; font-weight: 800; color: #ff5b4f; text-shadow: 0 2px 6px #000; opacity: 0; transition: opacity .3s; }
+  #score { position: absolute; left: 50%; top: 12%; transform: translateX(-50%); width: min(520px, calc(100vw - 32px)); background: rgba(10,12,16,.85); border-radius: 10px; padding: 14px 18px; }
+  #score table { width: 100%; border-collapse: collapse; font-size: 15px; }
+  #score th { text-align: left; color: #8a94a6; font-weight: 600; padding: 4px; border-bottom: 1px solid #333; }
+  #score td { padding: 5px 4px; }
+  #score tr.me td { color: #ffd479; }
+  #score .dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 8px; }
+  #emotehint { position: absolute; left: 50%; bottom: 20px; transform: translateX(-50%); font-size: 12px; color: rgba(255,255,255,.55); text-shadow: 0 1px 2px #000; }
+</style>
+</head>
+<body>
+<div id="menu">
+  <div class="panel">
+    <h1>KNIFE <span>ARENA</span></h1>
+    <p class="sub">Đấu dao online — chỉ có dao, kỹ năng và di chuyển.</p>
+    <label for="name">Tên của bạn</label>
+    <input id="name" type="text" maxlength="16" placeholder="Nhập tên..." autocomplete="off">
+    <label for="sens">Độ nhạy chuột: <span id="sensv"></span></label>
+    <input id="sens" type="range" min="0.5" max="4" step="0.1" value="1.6">
+    <button id="play" disabled>ĐANG KẾT NỐI...</button>
+    <div id="status"></div>
+    <div class="keys">
+      <b>W A S D</b><span>Di chuyển</span>
+      <b>Space</b><span>Nhảy (nhảy liên tục + lắc chuột để bunny hop)</span>
+      <b>C</b><span>Ngồi — ngồi khi đang nhảy để nhảy cao hơn</span>
+      <b>Shift</b><span>Đi chậm</span>
+      <b>Chuột trái</b><span>Chém nhanh (34, sau lưng 65)</span>
+      <b>Chuột phải</b><span>Đâm mạnh (70, sau lưng = hạ gục)</span>
+      <b>F</b><span>Ngắm dao (inspect)</span>
+      <b>1 / 2 / 3</b><span>Vẫy tay / Khiêu khích / Nhảy múa</span>
+      <b>V</b><span>Đổi góc nhìn 1/3</span>
+      <b>Tab</b><span>Bảng điểm</span>
+      <b>Enter</b><span>Chat</span>
+    </div>
+  </div>
+</div>
+
+<div id="hud" class="hidden">
+  <div id="cross"></div>
+  <div id="hitmark"></div>
+  <div id="flash"></div>
+  <div id="hp">100<small>HP</small><div id="hpbar"><div id="hpfill"></div></div></div>
+  <div id="kd">0 hạ · 0 chết</div>
+  <div id="feed"></div>
+  <div id="chatlog"></div>
+  <input id="chatin" class="hidden" maxlength="120" autocomplete="off" placeholder="Nhập tin nhắn, Enter để gửi, Esc để hủy">
+  <div id="center"></div>
+  <div id="dead" class="hidden"></div>
+  <div id="score" class="hidden"><table><thead><tr><th>Người chơi</th><th>Hạ</th><th>Chết</th></tr></thead><tbody id="scorebody"></tbody></table></div>
+  <div id="emotehint">F ngắm dao · 1 vẫy tay · 2 khiêu khích · 3 nhảy múa · V góc nhìn</div>
+</div>
+
+<script type="importmap">{ "imports": { "three": "/lib/three.module.js", "three/addons/": "/addons/" } }</script>
+<script type="module" src="game.js"></script>
+</body>
+</html>
