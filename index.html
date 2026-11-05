@@ -55,7 +55,7 @@
   #feed { position: absolute; right: 16px; top: 14px; display: flex; flex-direction: column; gap: 4px; align-items: flex-end; }
   #feed div { background: rgba(0,0,0,.55); padding: 4px 10px; border-radius: 4px; font-size: 14px; }
   #feed .me { border: 1px solid #e0463a; }
-  #chatlog { position: absolute; left: 16px; bottom: 120px; width: min(420px, 60vw); display: flex; flex-direction: column; gap: 2px; font-size: 14px; text-shadow: 0 1px 3px #000; }
+  #chatlog { position: absolute; left: 16px; bottom: 142px; width: min(420px, 60vw); display: flex; flex-direction: column; gap: 2px; font-size: 14px; text-shadow: 0 1px 3px #000; }
   #chatlog div { transition: opacity 1s; }
   #chatlog .sys { color: #ffd479; }
   #chatin { position: absolute; left: 16px; bottom: 88px; width: min(420px, 60vw); padding: 6px 10px; font-size: 15px; border-radius: 6px; border: 1px solid #555; background: rgba(0,0,0,.7); color: #fff; outline: none; pointer-events: auto; }
@@ -76,6 +76,9 @@
   #scope i { position: absolute; left: 50%; top: 50%; width: 6px; height: 6px; margin: -3px 0 0 -3px; border-radius: 50%; background: #e0201a; z-index: 1; }
   #toast { position: absolute; left: 50%; top: 66%; transform: translateX(-50%); font-size: 18px; font-weight: 700; color: #7dff9a; text-shadow: 0 2px 6px #000; opacity: 0; transition: opacity .3s; }
   #buff { position: absolute; left: 24px; bottom: 96px; font-size: 16px; font-weight: 700; color: #6cc2ff; text-shadow: 0 2px 6px #000; }
+  #charge { position: absolute; left: 50%; top: calc(50% + 34px); width: 140px; height: 7px; margin-left: -70px; background: rgba(0,0,0,.55); border-radius: 4px; overflow: hidden; }
+  #charge i { display: block; height: 100%; width: 0; background: linear-gradient(90deg, #ffd479, #ff5b2e); }
+  #iwave { position: absolute; left: 24px; bottom: 120px; font-size: 13px; color: rgba(255,255,255,.8); text-shadow: 0 1px 3px #000; }
   #hint { position: absolute; left: 50%; bottom: 14px; transform: translateX(-50%); font-size: 12px; color: rgba(255,255,255,.55); text-shadow: 0 1px 2px #000; white-space: nowrap; }
 </style>
 </head>
@@ -116,9 +119,9 @@
       <b>1 / 2 / 3 / 4</b><span>Dao / Súng lục / Bom / Súng bắn tỉa · Q: vũ khí trước</span>
       <b>Chuột trái</b><span>Dao: chém (34) · Súng lục: bắn (22, đầu 60) · Bắn tỉa: 80, vào đầu chết ngay · Bom: ném</span>
       <b>Chuột phải</b><span>Dao: đâm mạnh (70, sau lưng = hạ gục) · Súng: giữ để ngắm (bắn tỉa: ống ngắm zoom xa)</span>
-      <b>E</b><span>Ném bom nhanh (nổ sau 1.8 giây, bán kính 5m)</span>
+      <b>E / Chuột trái (bom)</b><span>Giữ để lấy đà, thả để ném — giữ càng lâu ném càng xa (nổ sau 1.8 giây, bán kính 5m)</span>
       <b>R</b><span>Nạp đạn</span>
-      <b>Vật phẩm</b><span>Chạy qua để nhặt: ➕ Máu +50 · 📦 Đạn +24 · 💣 Bom +1 · ⚡ Tăng tốc 8 giây</span>
+      <b>Vật phẩm</b><span>Làm mới mỗi 1 phút. Chạy qua để nhặt: ➕ Máu +50 · 📦 Đạn · 💣 Bom +1 · ⚡ Tăng tốc 8 giây</span>
       <b>F</b><span>Xoay ngắm vũ khí (inspect)</span>
       <b>G / H / J</b><span>Vẫy tay / Khiêu khích / Nhảy múa</span>
       <b>V · Tab · Enter</b><span>Góc nhìn · Bảng điểm · Chat</span>
@@ -144,9 +147,11 @@
   <div id="center"></div>
   <div id="toast"></div>
   <div id="buff"></div>
+  <div id="iwave"></div>
+  <div id="charge" class="hidden"><i></i></div>
   <div id="dead" class="hidden"></div>
   <div id="score" class="hidden"><table><thead><tr><th>Người chơi</th><th>Hạ</th><th>Chết</th></tr></thead><tbody id="scorebody"></tbody></table></div>
-  <div id="hint">1 dao · 2 súng lục · 3 bom · 4 bắn tỉa · E ném bom · Chuột phải ngắm · R nạp đạn · G/H/J cử chỉ · V góc nhìn</div>
+  <div id="hint">1 dao · 2 súng lục · 3 bom · 4 bắn tỉa · E giữ để ném bom · Chuột phải ngắm · R nạp đạn · G/H/J cử chỉ · V góc nhìn</div>
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/peerjs@1.5.4/dist/peerjs.min.js"></script>
@@ -172,13 +177,15 @@ const ATTACKS = {
 // zoom: số độ FOV giảm khi ngắm. Súng bắn tỉa: vào đầu = chết ngay
 const GUNS = {
   pistol: { mag: 12, reserve: 48, maxReserve: 96, ammoItem: 24, rate: 0.22, reload: 1.6, body: 22, head: 60, range: 120, zoom: 28 },
-  sniper: { mag: 5, reserve: 10, maxReserve: 20, ammoItem: 5, rate: 1.3, reload: 2.4, body: 80, head: 200, range: 200, zoom: 62 },
+  sniper: { mag: 5, reserve: 30, maxReserve: 45, ammoItem: 10, rate: 1.3, reload: 2.4, body: 80, head: 200, range: 200, zoom: 62 },
 };
 const PISTOL = GUNS.pistol;
-const NADE = { fuse: 1.8, radius: 5, dmg: 110, speed: 15, max: 3, gravity: 18 };
-const ITEM = { max: 6, every: 7000, health: 50, ammo: 24, maxReserve: 96, speedTime: 8 };
+// giữ chuột để ném xa: lực từ speedMin (thả ngay) tới speedMax (giữ đủ hold giây)
+const NADE = { fuse: 1.8, radius: 5, dmg: 110, speedMin: 7, speedMax: 25, hold: 1.0, max: 3, gravity: 18 };
+// mỗi wave (1 phút) xóa hết vật phẩm cũ và rải max vật phẩm mới
+const ITEM = { max: 8, wave: 60000, health: 50, ammo: 24, maxReserve: 96, speedTime: 8 };
 const ITEM_INFO = {
-  health: { label: '+50 Máu', w: 35 }, ammo: { label: '+24 Đạn', w: 25 },
+  health: { label: '+50 Máu', w: 35 }, ammo: { label: '+Đạn (24 súng lục · 10 bắn tỉa)', w: 25 },
   nade: { label: '+1 Bom', w: 25 }, speed: { label: 'Tăng tốc 8 giây', w: 15 },
 };
 const EMOTES = ['inspect', 'wave', 'taunt', 'dance'];
@@ -278,7 +285,7 @@ const dirOf = (yaw, pitch) => { const cp = Math.cos(pitch); return [-Math.sin(ya
 class HostCore {
   constructor() {
     this.players = new Map(); this.nextId = 1; this.pending = [];
-    this.items = []; this.itemId = 1; this.nextItem = Date.now() + 3000;
+    this.items = []; this.itemId = 1; this.nextWave = Date.now() + 3000;
     this.nades = []; this.nadeId = 1; this.lastTick = Date.now();
   }
   spawnItem() {
@@ -295,11 +302,12 @@ class HostCore {
     this.to(p, { t: 'got', type: it.type, nades: p.nades });
     return true;
   }
-  throwNade(p, yaw, pitch) {
+  throwNade(p, yaw, pitch, pw = 0.45) {
     const [dx, dy, dz] = dirOf(yaw, pitch);
+    const sp = NADE.speedMin + (NADE.speedMax - NADE.speedMin) * pw;
     let x = p.x + dx * 0.4, y = this.eyeY(p) + dy * 0.4 - 0.1, z = p.z + dz * 0.4;
     if (pointBlocked(x, y, z, 0.08)) { x = p.x; y = this.eyeY(p) - 0.1; z = p.z; }
-    const n = { id: this.nadeId++, owner: p.id, x, y, z, vx: dx * NADE.speed, vy: dy * NADE.speed + 3, vz: dz * NADE.speed, t: NADE.fuse };
+    const n = { id: this.nadeId++, owner: p.id, x, y, z, vx: dx * sp, vy: dy * sp + 2 + 2 * pw, vz: dz * sp, t: NADE.fuse };
     this.nades.push(n);
     this.bc({ t: 'nade', id: n.id, owner: p.id, x: n.x, y: n.y, z: n.z, vx: n.vx, vy: n.vy, vz: n.vz, fuse: n.t });
   }
@@ -445,7 +453,7 @@ class HostCore {
         if (!p.joined || !p.alive || p.nades <= 0 || now < (p.nextThrow || 0)) return;
         p.nades--; p.nextThrow = now + 700;
         this.bc({ t: 'act', id, k: 'throw' }, p);
-        this.throwNade(p, num(m.yaw, -1e4, 1e4), num(m.pitch, -1.6, 1.6));
+        this.throwNade(p, num(m.yaw, -1e4, 1e4), num(m.pitch, -1.6, 1.6), m.pw === undefined ? 0.45 : num(m.pw, 0, 1));
         break;
       case 'emote':
         if (!EMOTES.includes(m.e) || !p.alive || now - p.lastEmote < 500) return;
@@ -474,7 +482,11 @@ class HostCore {
       if (n.t <= 0) { this.nades.splice(i, 1); this.explode(n); }
     }
     // vật phẩm: sinh ngẫu nhiên + nhặt
-    if (now >= this.nextItem) { this.nextItem = now + ITEM.every; if (this.items.length < ITEM.max) this.spawnItem(); }
+    if (now >= this.nextWave) {
+      this.nextWave = now + ITEM.wave; this.items = [];
+      for (let i = 0; i < ITEM.max; i++) this.spawnItem();
+      this.bc({ t: 'wave' });
+    }
     for (const p of this.players.values()) {
       if (!p.joined || !p.alive) continue;
       for (let i = this.items.length - 1; i >= 0; i--) {
@@ -490,7 +502,7 @@ class HostCore {
       list.push({ id: p.id, n: p.name, col: p.color, x: +p.x.toFixed(3), y: +p.y.toFixed(3), z: +p.z.toFixed(3),
         yaw: +p.yaw.toFixed(3), pitch: +p.pitch.toFixed(3), c: p.crouch ? 1 : 0, w: p.w, hp: p.hp, al: p.alive ? 1 : 0, k: p.kills, d: p.deaths });
     }
-    this.bc({ t: 'snap', p: list, it: this.items.map(i => [i.id, i.type, i.x, i.y, i.z]) });
+    this.bc({ t: 'snap', p: list, it: this.items.map(i => [i.id, i.type, i.x, i.y, i.z]), iw: Math.max(0, this.nextWave - now) });
   }
 }
 
@@ -1346,13 +1358,13 @@ addEventListener('mousemove', (e) => {
 let wantFire = 0;
 addEventListener('mousedown', (e) => {
   if (!locked) return;
-  if (e.button === 0) { mouseL = true; if (isGun(weapon)) wantFire = 0.2; if (weapon === 'nade') throwNade(); }
+  if (e.button === 0) { mouseL = true; if (isGun(weapon)) wantFire = 0.2; if (weapon === 'nade') startNadeCharge(); }
   if (e.button === 2) mouseR = true;
 });
-addEventListener('mouseup', (e) => { if (e.button === 0) mouseL = false; if (e.button === 2) mouseR = false; });
+addEventListener('mouseup', (e) => { if (e.button === 0) { mouseL = false; if (nadeHold >= 0 && !nadeByKey) releaseNade(); } if (e.button === 2) mouseR = false; });
 addEventListener('contextmenu', (e) => e.preventDefault());
 addEventListener('wheel', () => { if (locked) jumpBuf = 0.12; });
-addEventListener('blur', () => { for (const k in keys) keys[k] = false; mouseL = mouseR = false; });
+addEventListener('blur', () => { for (const k in keys) keys[k] = false; mouseL = mouseR = false; cancelNade(); });
 addEventListener('keydown', (e) => {
   if (chatOpen) {
     if (e.code === 'Enter') { e.preventDefault(); closeChat(true); }
@@ -1368,7 +1380,7 @@ addEventListener('keydown', (e) => {
     case 'Digit1': switchWeapon('knife'); break;
     case 'Digit2': switchWeapon('pistol'); break;
     case 'Digit3': switchWeapon('nade'); break;
-    case 'KeyE': throwNade(); break;
+    case 'KeyE': startNadeCharge(true); break;
     case 'Digit4': switchWeapon('sniper'); break;
     case 'KeyQ': switchWeapon(lastWeapon); break;
     case 'KeyR': startReload(); break;
@@ -1380,7 +1392,7 @@ addEventListener('keydown', (e) => {
     case 'Enter': case 'KeyT': e.preventDefault(); openChat(); break;
   }
 });
-addEventListener('keyup', (e) => { keys[e.code] = false; if (e.code === 'Tab') showScore(false); });
+addEventListener('keyup', (e) => { keys[e.code] = false; if (e.code === 'Tab') showScore(false); if (e.code === 'KeyE' && nadeHold >= 0 && nadeByKey) releaseNade(); });
 function openChat() { chatOpen = true; chatIn.classList.remove('hidden'); chatIn.value = ''; document.exitPointerLock(); setTimeout(() => chatIn.focus(), 0); }
 function closeChat(sendIt) {
   const msg = chatIn.value.trim();
@@ -1607,6 +1619,7 @@ function onMsg(m) {
       }
       for (const [id, r] of remotes) if (!seen.has(id)) { scene.remove(r.av.g); remotes.delete(id); }
       syncItems(m.it);
+      if (m.iw !== undefined) itemWaveAt = performance.now() + m.iw;
       if (scoreShown) renderScore();
       break;
     }
@@ -1668,6 +1681,7 @@ function onMsg(m) {
       break;
     case 'chat': addChat(m.name, m.color, m.msg); break;
     case 'sys': addChat(null, 0, m.msg); break;
+    case 'wave': SFX.pickup(); toast('Vật phẩm mới đã xuất hiện!'); break;
   }
 }
 function die(killer) {
@@ -1726,10 +1740,37 @@ function switchWeapon(w) {
   weapon = w; reloadT = 0; boltT = 0; atkCd = w === 'sniper' ? 0.8 : 0.45; wantFire = 0;
   vmPlay('draw'); updateAmmo(); setCrosshair();
 }
-function throwNade() {
+// đường bay dự kiến của bom khi đang giữ (dùng cùng mô phỏng stepNade như host)
+const ARC_N = 60;
+const arcLine = new THREE.Line(new THREE.BufferGeometry().setAttribute('position', new THREE.BufferAttribute(new Float32Array(ARC_N * 3), 3)),
+  new THREE.LineDashedMaterial({ color: 0xffd479, dashSize: 0.25, gapSize: 0.18, transparent: true, opacity: 0.85, depthTest: false }));
+arcLine.frustumCulled = false; arcLine.visible = false; arcLine.renderOrder = 5; scene.add(arcLine);
+function drawArc(pw) {
+  const [dx, dy, dz] = dirOf(P.yaw, P.pitch);
+  const sp = NADE.speedMin + (NADE.speedMax - NADE.speedMin) * pw;
+  const eye = P.pos.y + P.h - 0.12;
+  const n = { x: P.pos.x + dx * 0.4, y: eye + dy * 0.4 - 0.1, z: P.pos.z + dz * 0.4, vx: dx * sp, vy: dy * sp + 2 + 2 * pw, vz: dz * sp };
+  const a = arcLine.geometry.attributes.position.array;
+  for (let i = 0; i < ARC_N; i++) { a[i * 3] = n.x; a[i * 3 + 1] = n.y; a[i * 3 + 2] = n.z; stepNade(n, NADE.fuse / ARC_N); }
+  arcLine.geometry.attributes.position.needsUpdate = true; arcLine.computeLineDistances(); arcLine.visible = true;
+}
+// giữ để lấy đà ném bom: nadeHold = số giây đã giữ (-1 = không giữ)
+let nadeHold = -1, nadeByKey = false, itemWaveAt = 0;
+function startNadeCharge(byKey = false) {
+  if (nadeHold >= 0) return;
+  if (!P.alive || nades <= 0 || atkCd > 0 || reloadT > 0) { if (nades <= 0 && P.alive) toast('Hết bom'); return; }
+  nadeHold = 0; nadeByKey = byKey;
+}
+function cancelNade() { nadeHold = -1; $('charge').classList.add('hidden'); arcLine.visible = false; }
+function releaseNade() {
+  if (nadeHold < 0) return;
+  const pw = Math.min(1, nadeHold / NADE.hold);
+  cancelNade(); throwNade(pw);
+}
+function throwNade(pw = 0.45) {
   if (!P.alive || nades <= 0 || atkCd > 0 || reloadT > 0) { if (nades <= 0 && P.alive) toast('Hết bom'); return; }
   nades--; atkCd = 0.75;
-  net({ t: 'throw', yaw: P.yaw, pitch: P.pitch });
+  net({ t: 'throw', yaw: P.yaw, pitch: P.pitch, pw });
   vmPlay('throw'); SFX.swing('stab', 0.5);
   if (me) { me.act = 'throw'; me.actT = 0; }
   emoteCam = 0;
@@ -1826,6 +1867,20 @@ function placeCamera(dt) {
 const clock = new THREE.Clock();
 function update(dt) {
   atkCd -= dt; wantFire -= dt;
+  if (nadeHold >= 0) {
+    if (!P.alive || nades <= 0) cancelNade();
+    else {
+      nadeHold += dt;
+      const pw = Math.min(1, nadeHold / NADE.hold);
+      $('charge').classList.remove('hidden'); $('charge').firstChild.style.width = (pw * 100) + '%';
+      drawArc(pw);
+    }
+  }
+  if (itemWaveAt) {
+    const s = Math.max(0, Math.ceil((itemWaveAt - performance.now()) / 1000));
+    const txt = `🎁 Vật phẩm mới sau ${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+    const el = $('iwave'); if (el.textContent !== txt) el.textContent = txt;
+  }
   if (boostT > 0) { boostT -= dt; const b = $('buff'); b.textContent = boostT > 0 ? `⚡ Tăng tốc ${Math.ceil(boostT)}s` : ''; }
   // ngắm bắn bằng chuột phải khi cầm súng
   if (boltT > 0) boltT -= dt;
@@ -1944,7 +1999,7 @@ addEventListener('resize', () => {
   composer?.setSize(innerWidth, innerHeight);
 });
 addEventListener('beforeunload', () => { try { peer?.destroy(); } catch { /* ignore */ } });
-window.KA = { P, remotes, get core() { return core; }, scene, switchWeapon, fire, doEmote, throwNade, forceAds: false, forceInput: false, keys, step: (dt) => update(dt) }; // để debug
+window.KA = { P, remotes, get core() { return core; }, scene, switchWeapon, fire, doEmote, throwNade, startNadeCharge, releaseNade, get nadeHold() { return nadeHold; }, forceAds: false, forceInput: false, keys, step: (dt) => update(dt) }; // để debug
 frame();
 </script>
 </body>
