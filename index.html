@@ -134,8 +134,8 @@
       <b>W A S D</b><span>Di chuyển · Shift đi chậm</span>
       <b>Space</b><span>Nhảy (giữ để nhảy liên tục, lắc chuột + A/D để bunny hop)</span>
       <b>C</b><span>Ngồi (ngồi lúc đang nhảy để lên chỗ cao)</span>
-      <b>1 / 2 / 3 / 4 / 5</b><span>Dao / Súng lục / Bom / Súng bắn tỉa / Rìu · Q: vũ khí trước</span>
-      <b>Chuột trái</b><span>Dao: chém (34) · Rìu: chém ngang (50) · Súng lục: bắn (22, đầu 60) · Bắn tỉa: 80, vào đầu chết ngay · Bom: ném</span>
+      <b>1 – 6</b><span>Dao / Súng lục / Bom / Súng bắn tỉa / Rìu / AK-47 · Q: vũ khí trước</span>
+      <b>Chuột trái</b><span>AK: giữ để bắn liên thanh (25, đầu 80) — súng giật lên, kéo chuột xuống để ghìm · Dao: chém (34) · Rìu: chém ngang (50) · Súng lục: bắn (22, đầu 60) · Bắn tỉa: 80, vào đầu chết ngay · Bom: ném</span>
       <b>Chuột phải</b><span>Dao: đâm mạnh (70, sau lưng = hạ gục) · Rìu: bổ dọc mạnh (95) · Súng: giữ để ngắm (bắn tỉa: ống ngắm zoom xa)</span>
       <b>Trúng đầu</b><span>Dao và rìu chém/đâm trúng đầu = chết ngay (đặt tâm ngắm lên đầu đối thủ)</span>
       <b>E / Chuột trái (bom)</b><span>Giữ để lấy đà, thả để ném — giữ càng lâu ném càng xa (nổ sau 1.8 giây, bán kính 5m)</span>
@@ -158,7 +158,7 @@
   <div id="teamscore" class="hidden"></div>
   <div id="hp">100<small>HP</small><div id="hpbar"><div id="hpfill"></div></div></div>
   <div id="weap">
-    <div id="slots"><span id="slot1">1 Dao</span><span id="slot2">2 Súng lục</span><span id="slot3">3 Bom ×1</span><span id="slot4">4 Bắn tỉa</span><span id="slot5">5 Rìu</span></div>
+    <div id="slots"><span id="slot1">1 Dao</span><span id="slot2">2 Súng lục</span><span id="slot3">3 Bom ×1</span><span id="slot4">4 Bắn tỉa</span><span id="slot5">5 Rìu</span><span id="slot6">6 AK</span></div>
     <div id="ammo">DAO</div>
     <div id="kd">0 hạ · 0 chết</div>
   </div>
@@ -172,7 +172,7 @@
   <div id="charge" class="hidden"><i></i></div>
   <div id="dead" class="hidden"></div>
   <div id="score" class="hidden"><table><thead><tr><th>Người chơi</th><th>Hạ</th><th>Chết</th></tr></thead><tbody id="scorebody"></tbody></table></div>
-  <div id="hint">1 dao · 2 súng lục · 3 bom · 4 bắn tỉa · 5 rìu · E giữ để ném bom · Chuột phải ngắm · R nạp đạn · G/H/J cử chỉ · V góc nhìn</div>
+  <div id="hint">1 dao · 2 súng lục · 3 bom · 4 bắn tỉa · 5 rìu · 6 AK · E giữ để ném bom · Chuột phải ngắm · R nạp đạn · G/H/J cử chỉ · V góc nhìn</div>
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/peerjs@1.5.4/dist/peerjs.min.js"></script>
@@ -201,6 +201,7 @@ const ATTACKS = {
 // zoom: số độ FOV giảm khi ngắm. Súng bắn tỉa: vào đầu = chết ngay
 const GUNS = {
   pistol: { mag: 12, reserve: 48, maxReserve: 96, ammoItem: 24, rate: 0.22, reload: 1.6, body: 22, head: 60, range: 120, zoom: 28 },
+  ak: { mag: 30, reserve: 90, maxReserve: 180, ammoItem: 30, rate: 0.1, reload: 2.2, body: 25, head: 80, range: 150, zoom: 22 },
   sniper: { mag: 5, reserve: 30, maxReserve: 45, ammoItem: 10, rate: 1.3, reload: 2.4, body: 80, head: 200, range: 200, zoom: 62 },
 };
 const PISTOL = GUNS.pistol;
@@ -209,7 +210,7 @@ const NADE = { fuse: 1.8, radius: 5, dmg: 110, speedMin: 7, speedMax: 25, hold: 
 // mỗi wave (1 phút) xóa hết vật phẩm cũ và rải max vật phẩm mới
 const ITEM = { max: 8, wave: 60000, health: 50, ammo: 24, maxReserve: 96, speedTime: 8 };
 const ITEM_INFO = {
-  health: { label: '+50 Máu', w: 35 }, ammo: { label: '+Đạn (24 súng lục · 10 bắn tỉa)', w: 25 },
+  health: { label: '+50 Máu', w: 35 }, ammo: { label: '+Đạn (24 súng lục · 30 AK · 10 bắn tỉa)', w: 25 },
   nade: { label: '+1 Bom', w: 25 }, speed: { label: 'Tăng tốc 8 giây', w: 15 },
 };
 const EMOTES = ['inspect', 'wave', 'taunt', 'dance'];
@@ -223,7 +224,7 @@ const BOT_DIFF = [
   { err: 0.027, react: 0.3, rate: 1.8, turn: 10, speed: 6.0 },     // Khó
 ];
 const BOT_NAMES = ['Tèo', 'Tí', 'Tủn', 'Mít', 'Bơ', 'Ổi', 'Xoài', 'Cốm', 'Bưởi', 'Mận', 'Đậu', 'Lạc', 'Bắp', 'Gấc', 'Khoai', 'Sắn', 'Mè', 'Na', 'Su', 'Cà'];
-const HOST_WCODE = { knife: 0, pistol: 1, sniper: 3 };
+const HOST_WCODE = { knife: 0, pistol: 1, sniper: 3, ak: 5 };
 const gauss = () => (Math.random() + Math.random() + Math.random() + Math.random() - 2) * 1.73;
 const angDiff = (a, b) => { let d = (a - b) % (Math.PI * 2); if (d > Math.PI) d -= Math.PI * 2; if (d < -Math.PI) d += Math.PI * 2; return d; };
 
@@ -349,9 +350,9 @@ class HostCore {
     p.name = 'BOT ' + BOT_NAMES[this.botSeq++ % BOT_NAMES.length];
     p.color = BOT_COLOR; p.joined = true; p.team = 2;
     const r = Math.random();
-    const gun = r < 0.25 ? 'knife' : r < 0.4 && this.botDiff > 0 ? 'sniper' : 'pistol';
+    const gun = r < 0.22 ? 'knife' : r < 0.35 && this.botDiff > 0 ? 'sniper' : r < 0.65 ? 'ak' : 'pistol';
     p.bot = { gun, mag: gun === 'knife' ? 0 : GUNS[gun].mag, next: 0, think: 0, target: 0, vis: false, seen: 0,
-      strafe: 1, strafeT: 0, detourT: 0, detourA: 0, prog: 0, px: 0, pz: 0, vy: 0, wp: null, wpT: 0 };
+      burst: 4, strafe: 1, strafeT: 0, detourT: 0, detourA: 0, prog: 0, px: 0, pz: 0, vy: 0, wp: null, wpT: 0 };
     p.w = HOST_WCODE[gun];
     this.spawn(p);
   }
@@ -437,9 +438,12 @@ class HostCore {
           this.pending.push({ due: now + A.delay, p, k: 'slash' });
         }
       } else if (dist < (B.gun === 'sniper' ? 90 : 45)) {
-        const G = GUNS[B.gun], e = D.err * (B.gun === 'sniper' ? 0.7 : 1);
+        const G = GUNS[B.gun], e = D.err * (B.gun === 'sniper' ? 0.7 : B.gun === 'ak' ? 1.3 : 1);
         this.shoot(p, p.yaw + gauss() * e, p.pitch + gauss() * e * 0.6, B.gun);
-        B.next = now + G.rate * 1000 * D.rate * (0.8 + Math.random() * 0.5);
+        if (B.gun === 'ak') {   // AK: bắn từng loạt 3-6 viên rồi nghỉ
+          B.next = now + G.rate * 1000 * 1.2;
+          if (--B.burst <= 0) { B.burst = 3 + Math.floor(Math.random() * 4); B.next = now + 350 * D.rate * (0.8 + Math.random() * 0.6); }
+        } else B.next = now + G.rate * 1000 * D.rate * (0.8 + Math.random() * 0.5);
         if (--B.mag <= 0) { B.mag = G.mag; B.next = now + G.reload * 1000; this.bc({ t: 'act', id: p.id, k: 'reload' }); }
       }
     }
@@ -592,7 +596,7 @@ class HostCore {
         if (!p.joined || !p.alive || m.life !== p.life) return;
         p.x = num(m.x, -30, 30); p.y = num(m.y, -5, 30); p.z = num(m.z, -30, 30);
         p.yaw = num(m.yaw, -1e4, 1e4); p.pitch = num(m.pitch, -1.6, 1.6);
-        p.crouch = !!m.c; p.w = [1, 2, 3, 4].includes(m.w) ? m.w : 0;
+        p.crouch = !!m.c; p.w = [1, 2, 3, 4, 5].includes(m.w) ? m.w : 0;
         break;
       case 'atk': {
         const A = ATTACKS[m.k];
@@ -603,7 +607,7 @@ class HostCore {
         break;
       }
       case 'shoot': {
-        const gun = m.g === 'sniper' ? 'sniper' : 'pistol';
+        const gun = m.g === 'sniper' || m.g === 'ak' ? m.g : 'pistol';
         if (!p.joined || !p.alive || now < p.nextShot) return;
         p.nextShot = now + GUNS[gun].rate * 1000 * 0.75;
         this.shoot(p, num(m.yaw, -1e4, 1e4), num(m.pitch, -1.6, 1.6), gun);
@@ -1017,6 +1021,7 @@ function physics(dt) {
   if (boostT > 0) ws *= 1.35;          // vật phẩm tốc độ
   if (weapon === 'sniper') ws *= 0.88; // súng tỉa nặng, chạy chậm hơn
   if (weapon === 'axe') ws *= 0.94;    // rìu hơi nặng
+  if (weapon === 'ak') ws *= 0.93;
   ws *= 1 - 0.4 * adsK;                // đang ngắm thì đi chậm lại
   jumpBuf -= dt;
   if (active && keys.Space) jumpBuf = Math.max(jumpBuf, 0.02);
@@ -1133,6 +1138,32 @@ function makeSniper() {
   g.userData.flash = flash;
   return g;
 }
+// AK-47: gốc ở tay cầm, nòng hướng -Z, đường ngắm ở y = 0.08
+const akMagMat = new THREE.MeshStandardMaterial({ color: 0x7a3418, roughness: 0.55 });
+function makeAK() {
+  const g = new THREE.Group();
+  const box = (w, h, d, m, x, y, z, rx = 0) => { const me = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), m); me.position.set(x, y, z); me.rotation.x = rx; me.castShadow = true; g.add(me); return me; };
+  const cyl = (r, len, m, x, y, z) => { const me = new THREE.Mesh(new THREE.CylinderGeometry(r, r, len, 10), m); me.rotation.x = Math.PI / 2; me.position.set(x, y, z); me.castShadow = true; g.add(me); return me; };
+  box(0.036, 0.05, 0.3, gunMat, 0, 0.03, -0.1);              // thân
+  box(0.032, 0.014, 0.26, gunMat, 0, 0.062, -0.08);          // nắp thân
+  box(0.032, 0.058, 0.24, woodMat, 0, 0.0, 0.17, -0.12);     // báng gỗ
+  box(0.026, 0.08, 0.035, gunDark, 0, -0.035, 0.03, 0.3);    // tay cầm
+  box(0.006, 0.024, 0.05, gunDark, 0, -0.008, -0.02);        // vòng cò
+  box(0.042, 0.042, 0.17, woodMat, 0, 0.024, -0.33);         // ốp tay dưới
+  box(0.032, 0.024, 0.13, woodMat, 0, 0.058, -0.31);         // ốp tay trên
+  cyl(0.01, 0.26, gunDark, 0, 0.03, -0.52);                  // nòng
+  cyl(0.015, 0.05, gunDark, 0, 0.03, -0.67);                 // đầu nòng
+  box(0.016, 0.042, 0.02, gunDark, 0, 0.052, -0.6);          // đế đầu ruồi
+  box(0.004, 0.018, 0.004, gunDark, 0, 0.08, -0.6);          // đầu ruồi
+  box(0.008, 0.016, 0.02, gunDark, -0.008, 0.077, -0.2); box(0.008, 0.016, 0.02, gunDark, 0.008, 0.077, -0.2); // thước ngắm
+  box(0.026, 0.06, 0.05, akMagMat, 0, -0.018, -0.16, 0.25);   // băng đạn cong
+  box(0.026, 0.055, 0.05, akMagMat, 0, -0.068, -0.183, 0.45);
+  box(0.026, 0.05, 0.05, akMagMat, 0, -0.11, -0.218, 0.65);
+  const flash = new THREE.Mesh(new THREE.OctahedronGeometry(0.045, 0), flashMat);
+  flash.position.set(0, 0.03, -0.72); flash.scale.set(1, 1, 2.5); flash.visible = false; g.add(flash);
+  g.userData.flash = flash;
+  return g;
+}
 // Quả bom
 const nadeMat = new THREE.MeshStandardMaterial({ color: 0x3d4a2c, roughness: 0.6, metalness: 0.2 });
 const nadeTopMat = new THREE.MeshStandardMaterial({ color: 0x8a8d91, metalness: 0.8, roughness: 0.3, envMap: envTex });
@@ -1218,9 +1249,10 @@ function makeAvatar(color, name) {
   const gun = makeGun(); gun.scale.setScalar(1.5); gun.position.set(0, -0.64, 0); gun.rotation.x = -Math.PI / 2; gun.visible = false; arms[1].add(gun);
   const nade = makeNade(); nade.scale.setScalar(1.5); nade.position.set(0, -0.68, 0); nade.visible = false; arms[1].add(nade);
   const rifle = makeSniper(); rifle.scale.setScalar(1.4); rifle.position.set(0, -0.64, 0); rifle.rotation.x = -Math.PI / 2; rifle.visible = false; arms[1].add(rifle);
+  const ak = makeAK(); ak.scale.setScalar(1.4); ak.position.set(0, -0.64, 0); ak.rotation.x = -Math.PI / 2; ak.visible = false; arms[1].add(ak);
   const axe = makeAxe(); axe.scale.setScalar(1.3); axe.position.set(0, -0.62, -0.02); axe.rotation.x = -Math.PI / 2; axe.visible = false; arms[1].add(axe);
   const tag = nameTag(name); g.add(tag);
-  return { g, body, upper, legs, arms, head, knife, gun, nade, rifle, axe, tag, walk: 0, crouchK: 0, deadK: 0, flashT: 0 };
+  return { g, body, upper, legs, arms, head, knife, gun, nade, rifle, ak, axe, tag, walk: 0, crouchK: 0, deadK: 0, flashT: 0 };
 }
 
 // Hoạt ảnh nhân vật (độ lệch so với tư thế mặc định)
@@ -1266,7 +1298,7 @@ function animateAvatar(st, dt) {
     const A = AV_ANIMS[st.act];
     if (!A || st.actT >= A.dur) st.act = null; else { sampleKeys(A.keys, st.actT, o); A.fn?.(st.actT, o); }
   }
-  const gun = st.w === 1 || st.w === 3, rifle = st.w === 3;
+  const gun = st.w === 1 || st.w === 3 || st.w === 5, rifle = st.w === 3 || st.w === 5;
   av.legs[0].rotation.x = leg + o.ll_x; av.legs[1].rotation.x = -leg + o.rl_x;
   for (const l of av.legs) l.scale.y = 1 - 0.76 * c;
   if (rifle && (!st.act || st.act === 'shoot')) av.arms[0].rotation.set(1.35 + st.pitch * 0.9, 0, 0.45);   // tay trái đỡ nòng súng tỉa
@@ -1276,9 +1308,9 @@ function animateAvatar(st, dt) {
   av.head.rotation.x = st.pitch * 0.8 + o.h_x;
   av.upper.rotation.set(o.lean + 0.25 * c, o.b_y, 0);
   av.body.position.y = -0.65 * c + o.b_up;
-  av.knife.visible = st.w === 0; av.axe.visible = st.w === 4; av.gun.visible = st.w === 1; av.nade.visible = st.w === 2; av.rifle.visible = rifle;
-  av.knife.rotation.y = o.spin; av.axe.rotation.y = o.spin; av.gun.rotation.y = o.spin; av.rifle.rotation.y = o.spin;
-  av.flashT -= dt; av.gun.userData.flash.visible = av.rifle.userData.flash.visible = av.flashT > 0;
+  av.knife.visible = st.w === 0; av.axe.visible = st.w === 4; av.gun.visible = st.w === 1; av.nade.visible = st.w === 2; av.rifle.visible = st.w === 3; av.ak.visible = st.w === 5;
+  av.knife.rotation.y = o.spin; av.axe.rotation.y = o.spin; av.gun.rotation.y = o.spin; av.rifle.rotation.y = o.spin; av.ak.rotation.y = o.spin;
+  av.flashT -= dt; av.gun.userData.flash.visible = av.rifle.userData.flash.visible = av.ak.userData.flash.visible = av.flashT > 0;
   av.g.rotation.x = -Math.PI / 2 * av.deadK;
   av.g.position.y += 0.15 * av.deadK;
   av.tag.visible = st.alive && st !== me;
@@ -1322,6 +1354,10 @@ const vAxe = makeAxe(); vAxe.rotation.copy(AXE_ROT); vAxe.position.set(0, 0.0, -
 vm.add(vAxe);
 VM_BASE.axe = new THREE.Vector3(0.22, -0.27, -0.42);
 const VM_ADS = new THREE.Vector3(0, -0.052, -0.34); // vị trí súng khi ngắm (thẳng tâm màn hình)
+const vAk = makeAK(); vAk.position.set(0, -0.005, 0.0); vAk.visible = false;
+vm.add(vAk);
+VM_BASE.ak = new THREE.Vector3(0.15, -0.18, -0.3);
+const VM_ADS_OF = { ak: new THREE.Vector3(0, -0.066, -0.34) };
 
 const VM_ANIMS = {
   slash: { dur: 0.42, keys: [[0, {}], [0.08, { px: 0.12, py: 0.05, pz: 0.02, ry: -0.7, rz: -0.5, rx: 0.1 }], [0.2, { px: -0.34, py: -0.04, pz: -0.12, ry: 0.95, rz: 0.55, rx: -0.1 }], [0.42, {}]] },
@@ -1348,7 +1384,7 @@ function updateViewmodel(dt, speed) {
   bobT += dt * (P.onGround ? speed : 0) * 1.5;
   swayX *= Math.exp(-9 * dt); swayY *= Math.exp(-9 * dt); landKick *= Math.exp(-10 * dt);
   const t = performance.now() / 1000;
-  const base = weapon === 'pistol' || weapon === 'sniper' ? _vmBase.copy(VM_BASE[weapon]).lerp(VM_ADS, adsK) : VM_BASE[weapon];
+  const base = isGun(weapon) ? _vmBase.copy(VM_BASE[weapon]).lerp(VM_ADS_OF[weapon] || VM_ADS, adsK) : VM_BASE[weapon];
   vm.position.set(
     base.x + a.px + Math.sin(bobT) * 0.014 * bobAmt,
     base.y + a.py - Math.abs(Math.cos(bobT)) * 0.012 * bobAmt + Math.sin(t * 1.7) * 0.003 * steady - landKick - (P.crouch ? 0.015 * steady : 0),
@@ -1357,10 +1393,12 @@ function updateViewmodel(dt, speed) {
   vm.rotation.set(a.rx + swayY * steady, a.ry + swayX * steady, a.rz);
   vArm.rotation.x = 0.12 + 0.75 * adsK;
   vArm.visible = adsK < 0.5; // khi ngắm chỉ để lại súng + găng tay, nhìn rõ đầu ruồi
-  vKnife.visible = weapon === 'knife'; vAxe.visible = weapon === 'axe'; vGun.visible = weapon === 'pistol'; vRifle.visible = weapon === 'sniper';
+  vKnife.visible = weapon === 'knife'; vAxe.visible = weapon === 'axe'; vGun.visible = weapon === 'pistol'; vRifle.visible = weapon === 'sniper'; vAk.visible = weapon === 'ak';
   vNade.visible = (weapon === 'nade' || vmAnim === VM_ANIMS.throw) && !(vmAnim === VM_ANIMS.throw && vmT > 0.32);
-  if (vmAnim === VM_ANIMS.throw) { vKnife.visible = vAxe.visible = vGun.visible = vRifle.visible = false; }
-  vRifle.rotation.z = a.spin;
+  if (vmAnim === VM_ANIMS.throw) { vKnife.visible = vAxe.visible = vGun.visible = vRifle.visible = vAk.visible = false; }
+  vRifle.rotation.z = a.spin; vAk.rotation.z = a.spin;
+  const af = vAk.userData.flash; af.visible = vmFlashT > 0 && weapon === 'ak';
+  if (af.visible) { af.rotation.z = Math.random() * 3; af.scale.set(1 + Math.random(), 1 + Math.random(), 2.5); }
   const rf = vRifle.userData.flash; rf.visible = vmFlashT > 0 && weapon === 'sniper';
   vKnife.rotation.y = KNIFE_ROLL + a.spin;
   vAxe.rotation.set(AXE_ROT.x, AXE_ROT.y + a.spin, AXE_ROT.z);
@@ -1403,6 +1441,7 @@ function sTone(f0, f1, dur, vol, type = 'sine', delay = 0) {
 }
 const SFX = {
   swing: (k, v = 1) => (k === 'chop' || k === 'heavy' ? (sNoise(k === 'heavy' ? 0.45 : 0.32, 260, 1400, 0.5 * v, 'bandpass', 1.1, k === 'heavy' ? 0.3 : 0.1)) : k === 'stab' ? sNoise(0.28, 500, 2200, 0.35 * v, 'bandpass', 1.5) : sNoise(0.22, 3500, 700, 0.4 * v, 'bandpass', 1.2)),
+  ak: (v = 1) => { sNoise(0.18, 5200, 280, 0.85 * v, 'lowpass', 0.8); sTone(140, 50, 0.1, 0.5 * v); sNoise(0.05, 2500, 1500, 0.3 * v, 'bandpass', 1); },
   shot: (v = 1) => { sNoise(0.22, 4000, 250, 0.9 * v, 'lowpass', 0.7); sTone(160, 45, 0.14, 0.55 * v); },
   sniper: (v = 1) => { sNoise(0.6, 5000, 120, 1.0 * v, 'lowpass', 0.6); sTone(110, 35, 0.35, 0.7 * v); sNoise(0.9, 900, 200, 0.25 * v, 'bandpass', 0.5, 0.08); },
   bolt: () => { sTone(700, 500, 0.05, 0.16, 'square', 0.45); sTone(500, 800, 0.05, 0.16, 'square', 0.85); },
@@ -1555,7 +1594,7 @@ addEventListener('mousedown', (e) => {
   if (e.button === 0) { mouseL = true; if (isGun(weapon)) wantFire = 0.2; if (weapon === 'nade') startNadeCharge(); }
   if (e.button === 2) mouseR = true;
 });
-addEventListener('mouseup', (e) => { if (e.button === 0) { mouseL = false; if (nadeHold >= 0 && !nadeByKey) releaseNade(); } if (e.button === 2) mouseR = false; });
+addEventListener('mouseup', (e) => { if (e.button === 0) { mouseL = false; if (weapon === 'ak') wantFire = 0; if (nadeHold >= 0 && !nadeByKey) releaseNade(); } if (e.button === 2) mouseR = false; });
 addEventListener('contextmenu', (e) => e.preventDefault());
 addEventListener('wheel', () => { if (locked) jumpBuf = 0.12; });
 addEventListener('blur', () => { for (const k in keys) keys[k] = false; mouseL = mouseR = false; cancelNade(); });
@@ -1577,6 +1616,7 @@ addEventListener('keydown', (e) => {
     case 'KeyE': startNadeCharge(true); break;
     case 'Digit4': switchWeapon('sniper'); break;
     case 'Digit5': switchWeapon('axe'); break;
+    case 'Digit6': switchWeapon('ak'); break;
     case 'KeyQ': switchWeapon(lastWeapon); break;
     case 'KeyR': startReload(); break;
     case 'KeyF': doEmote('inspect'); break;
@@ -1607,7 +1647,7 @@ function setHP(hp) {
 function updateAmmo() {
   $('slot1').classList.toggle('on', weapon === 'knife'); $('slot2').classList.toggle('on', weapon === 'pistol');
   $('slot3').classList.toggle('on', weapon === 'nade'); $('slot3').textContent = `3 Bom ×${nades}`;
-  $('slot4').classList.toggle('on', weapon === 'sniper'); $('slot5').classList.toggle('on', weapon === 'axe');
+  $('slot4').classList.toggle('on', weapon === 'sniper'); $('slot5').classList.toggle('on', weapon === 'axe'); $('slot6').classList.toggle('on', weapon === 'ak');
   const a = $('ammo'); a.style.color = '#fff';
   if (weapon === 'knife') { a.textContent = 'DAO'; return; }
   if (weapon === 'axe') { a.textContent = 'RÌU'; return; }
@@ -1649,7 +1689,7 @@ const nameSpan = (id) => {
   return s;
 };
 function addFeed(m) {
-  const icon = m.how === 'nade' ? '💣' : m.how === 'sniper' ? (m.head ? '🔭🎯' : '🔭') : m.how === 'pistol' ? (m.head ? '🔫🎯' : '🔫') : m.how === 'chop' || m.how === 'heavy' ? (m.head ? '🪓🎯' : m.back ? '🪓💀' : '🪓') : m.head ? '🔪🎯' : m.back ? '🔪💀' : m.how === 'stab' ? '🗡️' : '🔪';
+  const icon = m.how === 'nade' ? '💣' : m.how === 'sniper' ? (m.head ? '🔭🎯' : '🔭') : m.how === 'pistol' ? (m.head ? '🔫🎯' : '🔫') : m.how === 'ak' ? (m.head ? 'AK🎯' : 'AK') : m.how === 'chop' || m.how === 'heavy' ? (m.head ? '🪓🎯' : m.back ? '🪓💀' : '🪓') : m.head ? '🔪🎯' : m.back ? '🔪💀' : m.how === 'stab' ? '🗡️' : '🔪';
   const d = document.createElement('div');
   d.append(nameSpan(m.killer), document.createTextNode(`  ${icon}  `), nameSpan(m.victim));
   if (m.killer === myId || m.victim === myId) d.classList.add('me');
@@ -1859,7 +1899,7 @@ function onMsg(m) {
     }
     case 'got': {
       SFX.pickup();
-      if (m.type === 'ammo') for (const g of ['pistol', 'sniper']) ammo[g].res = Math.min(GUNS[g].maxReserve, ammo[g].res + GUNS[g].ammoItem);
+      if (m.type === 'ammo') for (const g of ['pistol', 'sniper', 'ak']) ammo[g].res = Math.min(GUNS[g].maxReserve, ammo[g].res + GUNS[g].ammoItem);
       if (m.type === 'nade') nades = m.nades;
       if (m.type === 'speed') boostT = ITEM.speedTime;
       toast(ITEM_INFO[m.type].label);
@@ -1889,7 +1929,7 @@ function onMsg(m) {
       tracer(muzzleOf(r.pos, r.yaw, r.pitch, r.crouch), end, m.g === 'sniper');
       if (!m.hit) burst(m.ex, m.ey, m.ez, 6, sparkMat, 3, 0.6);
       const vol = Math.max(0.15, 1 - r.pos.distanceTo(P.pos) / (m.g === 'sniper' ? 90 : 50));
-      if (m.g === 'sniper') SFX.sniper(vol); else SFX.shot(vol);
+      if (m.g === 'sniper') SFX.sniper(vol); else if (m.g === 'ak') SFX.ak(vol); else SFX.shot(vol);
       break;
     }
     case 'hit':
@@ -1936,13 +1976,14 @@ $('copy').addEventListener('click', () => {
 // Vũ khí + hành động
 // =====================================================================
 let weapon = 'knife', reloadT = 0, boltT = 0;
-const ammo = { pistol: { mag: 0, res: 0 }, sniper: { mag: 0, res: 0 } };
+const ammo = { pistol: { mag: 0, res: 0 }, sniper: { mag: 0, res: 0 }, ak: { mag: 0, res: 0 } };
 function resetAmmo() { for (const g in ammo) { ammo[g].mag = GUNS[g].mag; ammo[g].res = GUNS[g].reserve; } }
 resetAmmo();
-const isGun = (w) => w === 'pistol' || w === 'sniper';
+const isGun = (w) => w === 'pistol' || w === 'sniper' || w === 'ak';
+let sprayN = 0, sprayT = 0; // số viên AK bắn liên tục (độ giật tăng dần)
 let atkCd = 0, emoteCam = 0, stepAcc = 0, sendT = 0, punch = 0, lastCross = -1;
 let nades = 1, boostT = 0, prevWeapon = 'knife', lastWeapon = 'pistol', shake = 0;
-const WCODE = { knife: 0, pistol: 1, nade: 2, sniper: 3, axe: 4 };
+const WCODE = { knife: 0, pistol: 1, nade: 2, sniper: 3, axe: 4, ak: 5 };
 function spreadNow() {
   const sp = Math.min(Math.hypot(P.vel.x, P.vel.z) / MOVE.run, 1);
   if (weapon === 'sniper') {
@@ -1950,6 +1991,11 @@ function spreadNow() {
     let s = 0.08 * (1 - adsK) + 0.0006 + sp * 0.045 + (P.onGround ? 0 : 0.12);
     if (P.crouch && P.onGround) s *= 0.7;
     return s;
+  }
+  if (weapon === 'ak') {
+    let s = 0.005 + sp * 0.045 + (P.onGround ? 0 : 0.08) + Math.min(sprayN, 12) * 0.0028; // càng xả lâu càng tản
+    if (P.crouch && P.onGround) s *= 0.6;
+    return s * (1 - 0.6 * adsK);
   }
   let s = 0.006 + sp * 0.03 + (P.onGround ? 0 : 0.06);
   if (P.crouch && P.onGround) s *= 0.6;
@@ -1960,7 +2006,7 @@ function switchWeapon(w) {
   if (w === 'nade' && nades <= 0) { toast('Hết bom — nhặt vật phẩm 💣 để có thêm'); return; }
   if (weapon !== 'nade') prevWeapon = weapon;
   lastWeapon = weapon === 'nade' ? lastWeapon : weapon;
-  weapon = w; reloadT = 0; boltT = 0; atkCd = w === 'sniper' ? 0.8 : 0.45; wantFire = 0;
+  weapon = w; reloadT = 0; boltT = 0; atkCd = w === 'sniper' ? 0.8 : w === 'ak' ? 0.55 : 0.45; wantFire = 0; sprayN = 0;
   vmPlay('draw'); updateAmmo(); setCrosshair();
 }
 // đường bay dự kiến của bom khi đang giữ (dùng cùng mô phỏng stepNade như host)
@@ -2040,6 +2086,14 @@ function fire() {
   if (sniper) {
     SFX.sniper(1); SFX.bolt(); vmPlay('sfire'); boltT = G.rate;
     setTimeout(() => { if (weapon === 'sniper' && boltT > 0 && reloadT <= 0) vmPlay('bolt'); }, 300); punch += 0.09; P.pitch = Math.min(1.55, P.pitch + 0.025); }
+  else if (gun === 'ak') {
+    // độ giật: mỗi viên đẩy tâm lên, càng bắn lâu càng mạnh; sau ~8 viên tâm lắc trái phải
+    sprayN = Math.min(sprayN + 1, 30); sprayT = 0;
+    const kick = (0.006 + Math.min(sprayN, 8) * 0.0014) * (1 - 0.3 * adsK) * (P.crouch && P.onGround ? 0.8 : 1);
+    P.pitch = Math.min(1.55, P.pitch + kick);
+    P.yaw += sprayN > 7 ? Math.sin(sprayN * 0.55) * 0.011 + (Math.random() - 0.5) * 0.006 : (Math.random() - 0.5) * 0.004;
+    SFX.ak(1); vmPlay('fire'); punch += 0.025;
+  }
   else { SFX.shot(1); vmPlay('fire'); punch += 0.04; P.pitch = Math.min(1.55, P.pitch + 0.01); }
   vmFlashT = 0.05;
   if (me) { me.act = 'shoot'; me.actT = 0; me.av.flashT = 0.06; }
@@ -2090,6 +2144,7 @@ function placeCamera(dt) {
 const clock = new THREE.Clock();
 function update(dt) {
   atkCd -= dt; wantFire -= dt;
+  sprayT += dt; if (sprayT > 0.15 && sprayN > 0) sprayN = Math.max(0, sprayN - dt * 30);
   if (nadeHold >= 0) {
     if (!P.alive || nades <= 0) cancelNade();
     else {
@@ -2121,7 +2176,10 @@ function update(dt) {
   if (inputActive()) {
     if (weapon === 'knife') { if (mouseL) tryAttack('slash'); else if (mouseR) tryAttack('stab'); }
     else if (weapon === 'axe') { if (mouseL) tryAttack('chop'); else if (mouseR) tryAttack('heavy'); }
-    else if (wantFire > 0 && atkCd <= 0) { wantFire = 0; fire(); }
+    else {
+      if (weapon === 'ak' && mouseL) wantFire = 0.1; // AK: giữ chuột để bắn liên thanh
+      if (wantFire > 0 && atkCd <= 0) { wantFire = 0; fire(); }
+    }
   }
   if (reloadT > 0) {
     reloadT -= dt;
@@ -2227,7 +2285,7 @@ addEventListener('resize', () => {
   composer?.setSize(innerWidth, innerHeight);
 });
 addEventListener('beforeunload', () => { try { peer?.destroy(); } catch { /* ignore */ } });
-window.KA = { P, remotes, get core() { return core; }, scene, switchWeapon, fire, doEmote, tryAttack, throwNade, startNadeCharge, releaseNade, get nadeHold() { return nadeHold; }, forceAds: false, forceInput: false, keys, step: (dt) => update(dt) }; // để debug
+window.KA = { P, remotes, get core() { return core; }, scene, switchWeapon, fire, doEmote, tryAttack, setMouseL: (v) => { mouseL = v; if (!v && weapon === 'ak') wantFire = 0; }, get ammo() { return ammo; }, throwNade, startNadeCharge, releaseNade, get nadeHold() { return nadeHold; }, forceAds: false, forceInput: false, keys, step: (dt) => update(dt) }; // để debug
 frame();
 </script>
 </body>
