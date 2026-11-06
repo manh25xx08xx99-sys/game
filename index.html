@@ -80,7 +80,8 @@
   #charge i { display: block; height: 100%; width: 0; background: linear-gradient(90deg, #ffd479, #ff5b2e); }
   #iwave { position: absolute; left: 24px; bottom: 120px; font-size: 13px; color: rgba(255,255,255,.8); text-shadow: 0 1px 3px #000; }
   #teamscore { position: absolute; left: 50%; top: 10px; transform: translateX(-50%); font-size: 20px; font-weight: 800; text-shadow: 0 2px 6px #000; white-space: nowrap; }
-  #teamscore .a { color: #7dff9a; } #teamscore .b { color: #ff6b5b; }
+  #teamscore .a { color: #7dff9a; } #teamscore .b { color: #ff6b5b; } #teamscore .t1 { color: #5aa9ff; } #teamscore .t2 { color: #ff6b5b; }
+  #teamscore small { display: block; text-align: center; font-size: 13px; font-weight: 600; color: #e6e6e6; margin-top: 2px; }
   .panel select { width: 100%; padding: 8px 10px; font-size: 15px; border-radius: 8px; border: 1px solid #39414f; background: #0f1217; color: #fff; }
   .panel input[type=number] { padding: 8px 10px; font-size: 15px; border-radius: 8px; border: 1px solid #39414f; background: #0f1217; color: #fff; outline: none; user-select: text; }
   #hint { position: absolute; left: 50%; bottom: 14px; transform: translateX(-50%); font-size: 12px; color: rgba(255,255,255,.55); text-shadow: 0 1px 2px #000; white-space: nowrap; }
@@ -106,10 +107,11 @@
       <select id="mode">
         <option value="ffa">Đấu tự do — ai cũng là đối thủ</option>
         <option value="bots">Đánh bot — bạn bè vào phòng sẽ cùng đội với bạn</option>
+        <option value="rounds">Đấu round 2 phe — XANH vs ĐỎ, chết chờ round sau</option>
       </select>
       <div id="botopts" class="row hidden" style="margin-top:8px;align-items:center">
-        <span style="font-size:13px;color:#aab3c2">Số bot</span>
-        <input id="botn" type="number" min="1" max="20" value="6" style="width:80px;flex:none">
+        <span id="botnlabel" style="font-size:13px;color:#aab3c2">Số bot</span>
+        <input id="botn" type="number" min="0" max="20" value="6" style="width:80px;flex:none">
         <span style="font-size:13px;color:#aab3c2">Độ khó</span>
         <select id="botd" style="flex:1"><option value="0">Dễ</option><option value="1">Thường</option><option value="2">Khó</option></select>
       </div>
@@ -143,6 +145,7 @@
       <b>Vật phẩm</b><span>Làm mới mỗi 1 phút. Chạy qua để nhặt: ➕ Máu +50 · 📦 Đạn · 💣 Bom +1 · ⚡ Tăng tốc 8 giây</span>
       <b>F</b><span>Xoay ngắm vũ khí (inspect)</span>
       <b>G / H / J</b><span>Vẫy tay / Khiêu khích / Nhảy múa</span>
+      <b>Round 2 phe</b><span>Chủ phòng chọn "Đấu round 2 phe": chia 2 phe XANH – ĐỎ (bot chia đều). Chết thì chờ round sau; phe nào hết người trước thua round; thắng 7 round là thắng trận</span>
       <b>Đánh bot</b><span>Chủ phòng chọn chế độ "Đánh bot" và số bot. Bạn bè vào phòng cùng đội với bạn, không bắn trúng nhau. Tên xanh = đồng đội, tên đỏ = bot</span>
       <b>V · Tab · Enter</b><span>Góc nhìn · Bảng điểm · Chat</span>
     </div>
@@ -218,6 +221,14 @@ const COLORS = [0xe74c3c, 0x3498db, 0x2ecc71, 0xf1c40f, 0x9b59b6, 0xe67e22, 0x1a
 const PEER_PREFIX = 'knifearena-v2-';
 // ---- Bot ----
 const BOT_MAX = 20, BOT_COLOR = 0x8e2b22;
+// ---- Chế độ round 2 phe ----
+const ROUND = { pre: 4000, time: 120000, end: 5000, win: 7 }; // chuẩn bị 4s, mỗi round tối đa 2 phút, thắng 7 round = thắng trận
+const TEAM_NAME = ['', 'XANH', 'ĐỎ'], TEAM_COLOR = [0, 0x2f6fd6, 0xc0392b];
+const TEAM_SPAWNS = { 1: [], 2: [] };
+for (const z of [22.8, 21.6]) for (const x of [-11, -8, -5, -2, 1, 4, 7, 10]) {
+  TEAM_SPAWNS[1].push({ x, y: 0, z: -z, yaw: Math.PI }); // phe XANH ở phía Bắc, nhìn về giữa
+  TEAM_SPAWNS[2].push({ x, y: 0, z, yaw: 0 });          // phe ĐỎ ở phía Nam
+}
 const BOT_DIFF = [
   { err: 0.085, react: 0.95, rate: 4.0, turn: 3.5, speed: 4.4 },   // Dễ
   { err: 0.05, react: 0.55, rate: 2.6, turn: 6, speed: 5.2 },      // Thường
@@ -331,30 +342,70 @@ class HostCore {
     this.items = []; this.itemId = 1; this.nextWave = Date.now() + 3000;
     this.nades = []; this.nadeId = 1; this.lastTick = Date.now();
     this.mode = 'ffa'; this.botDiff = 1; this.botSeq = 0;
+    this.rs = { n: 0, st: 'wait', until: 0, sc: [0, 0, 0] }; this.spot = { 1: 0, 2: 0 };
+  }
+  teamCount(team) { let n = 0; for (const p of this.players.values()) if ((p.joined || !p.bot) && p.team === team) n++; return n; }
+  smallerTeam() { return this.teamCount(2) < this.teamCount(1) ? 2 : 1; }
+  startRound(n) {
+    const R = this.rs, now = Date.now();
+    R.n = n; R.st = 'pre'; R.until = now + ROUND.pre; this.spot = { 1: 0, 2: 0 };
+    this.pending = []; this.nades = [];
+    for (const p of this.players.values()) if (p.joined) { p.respawnAt = 0; this.spawn(p); }
+    this.bc({ t: 'round', ev: 'start', n, sc: [R.sc[1], R.sc[2]] });
+  }
+  roundTick(now) {
+    const R = this.rs, mem = [0, 0, 0], alive = [0, 0, 0];
+    for (const p of this.players.values()) if (p.joined && p.team) { mem[p.team]++; if (p.alive) alive[p.team]++; }
+    if (!mem[1] || !mem[2]) {
+      if (R.st !== 'wait') { R.st = 'wait'; this.bc({ t: 'sys', msg: 'Cần ít nhất 1 người hoặc bot ở mỗi phe để bắt đầu round' }); }
+      return;
+    }
+    if (R.st === 'wait') { R.sc = [0, 0, 0]; this.startRound(1); return; }
+    if (R.st === 'pre' && now >= R.until) { R.st = 'live'; R.until = now + ROUND.time; this.bc({ t: 'round', ev: 'go', n: R.n }); return; }
+    if (R.st === 'live' && (!alive[1] || !alive[2] || now >= R.until)) {
+      const win = !alive[1] && !alive[2] ? 0 : !alive[1] ? 2 : !alive[2] ? 1 : alive[1] > alive[2] ? 1 : alive[2] > alive[1] ? 2 : 0;
+      if (win) R.sc[win]++;
+      R.match = win && R.sc[win] >= ROUND.win;
+      R.st = 'end'; R.until = now + ROUND.end;
+      this.bc({ t: 'round', ev: 'end', win, n: R.n, sc: [R.sc[1], R.sc[2]], match: !!R.match });
+      return;
+    }
+    if (R.st === 'end' && now >= R.until) {
+      if (R.match) { R.sc = [0, 0, 0]; R.match = false; this.startRound(1); } else this.startRound(R.n + 1);
+    }
   }
   // đổi chế độ: 'ffa' (tự do) hoặc 'bots' (mọi người thật = đội 1, bot = đội 2)
   setMode(mode, n, diff) {
-    const was = this.mode;
-    this.mode = mode === 'bots' ? 'bots' : 'ffa';
+    const was = this.mode, wasDiff = this.botDiff;
+    this.mode = mode === 'bots' || mode === 'rounds' ? mode : 'ffa';
     this.botDiff = Math.max(0, Math.min(2, diff | 0));
-    const want = this.mode === 'bots' ? Math.max(0, Math.min(BOT_MAX, n | 0)) : 0;
-    for (const p of this.players.values()) if (!p.bot) p.team = this.mode === 'bots' ? 1 : 0;
-    const bots = [...this.players.values()].filter(p => p.bot);
+    const want = this.mode === 'ffa' ? 0 : Math.max(0, Math.min(BOT_MAX, n | 0));
+    let bots = [...this.players.values()].filter(p => p.bot);
+    const botsBefore = bots.length;
+    if (this.mode !== was) { for (const b of bots) this.players.delete(b.id); bots = []; } // đổi chế độ: tạo lại bot cho đúng phe
+    // chia phe cho người thật
+    const humans = [...this.players.values()].filter(p => !p.bot).sort((a, b) => a.id - b.id);
+    if (this.mode === 'rounds') { if (was !== 'rounds') humans.forEach((h, i) => { h.team = i % 2 ? 2 : 1; }); }
+    else for (const h of humans) h.team = this.mode === 'bots' ? 1 : 0;
     for (let i = want; i < bots.length; i++) this.players.delete(bots[i].id);
-    for (let i = bots.length; i < want; i++) this.addBot();
-    if (this.mode !== was || bots.length !== want)
-      this.bc({ t: 'sys', msg: this.mode === 'bots' ? `Chế độ đánh bot: ${want} bot (${['Dễ', 'Thường', 'Khó'][this.botDiff]}) — tất cả người chơi cùng một đội` : 'Chế độ đấu tự do' });
+    for (let i = bots.length; i < want; i++) this.addBot(this.mode === 'rounds' ? this.smallerTeam() : 2);
+    const changed = this.mode !== was || botsBefore !== want || wasDiff !== this.botDiff;
+    if (this.mode === 'rounds') { if (changed) { this.rs.sc = [0, 0, 0]; this.rs.st = 'wait'; } }
+    else if (was === 'rounds') for (const p of this.players.values()) if (p.joined && !p.alive) p.respawnAt = Date.now() + 1000;
+    if (changed)
+      this.bc({ t: 'sys', msg: this.mode === 'bots' ? `Chế độ đánh bot: ${want} bot (${['Dễ', 'Thường', 'Khó'][this.botDiff]}) — tất cả người chơi cùng một đội`
+        : this.mode === 'rounds' ? `Chế độ round 2 phe (XANH – ĐỎ), ${want} bot — thắng ${ROUND.win} round là thắng trận` : 'Chế độ đấu tự do' });
   }
-  addBot() {
+  addBot(team = 2) {
     const id = this.add(() => {}, false), p = this.players.get(id);
     p.name = 'BOT ' + BOT_NAMES[this.botSeq++ % BOT_NAMES.length];
-    p.color = BOT_COLOR; p.joined = true; p.team = 2;
+    p.color = this.mode === 'rounds' ? TEAM_COLOR[team] : BOT_COLOR; p.joined = true; p.team = team;
     const r = Math.random();
     const gun = r < 0.22 ? 'knife' : r < 0.35 && this.botDiff > 0 ? 'sniper' : r < 0.65 ? 'ak' : 'pistol';
     p.bot = { gun, mag: gun === 'knife' ? 0 : GUNS[gun].mag, next: 0, think: 0, target: 0, vis: false, seen: 0,
       burst: 4, strafe: 1, strafeT: 0, detourT: 0, detourA: 0, prog: 0, px: 0, pz: 0, vy: 0, wp: null, wpT: 0 };
     p.w = HOST_WCODE[gun];
-    this.spawn(p);
+    if (this.mode !== 'rounds' || this.rs.st !== 'live') this.spawn(p);
   }
   botThink(p, dt, now) {
     const B = p.bot, D = BOT_DIFF[this.botDiff] || BOT_DIFF[1];
@@ -362,6 +413,7 @@ class HostCore {
     const g = groundAt(p.x, p.z, p.y);
     if (p.y > g + 0.01) { B.vy -= 20 * dt; p.y = Math.max(g, p.y + B.vy * dt); } else { p.y = g; B.vy = 0; }
     if (!p.alive) return;
+    if (this.mode === 'rounds' && this.rs.st === 'pre') return; // đang chuẩn bị round: đứng yên
     const ex = p.x, ey = this.eyeY(p), ez = p.z;
     const aimY = (t) => t.y + (t.crouch ? CROUCH_H : STAND_H) * 0.72;
     const losTo = (t) => {
@@ -491,7 +543,7 @@ class HostCore {
     const id = this.nextId++;
     this.players.set(id, {
       id, send, remote, joined: false, name: 'Player' + id, color: COLORS[(id - 1) % COLORS.length],
-      x: 0, y: 0, z: 0, yaw: 0, pitch: 0, crouch: false, w: 0, hp: MAX_HP, alive: false, team: this.mode === 'bots' ? 1 : 0,
+      x: 0, y: 0, z: 0, yaw: 0, pitch: 0, crouch: false, w: 0, hp: MAX_HP, alive: false, team: this.mode === 'bots' ? 1 : this.mode === 'rounds' ? this.smallerTeam() : 0,
       kills: 0, deaths: 0, life: 0, nextAtk: 0, nextShot: 0, lastEmote: 0, respawnAt: 0, lastSeen: Date.now(),
     });
     return id;
@@ -507,6 +559,13 @@ class HostCore {
   eyeY(p) { return p.y + (p.crouch ? CROUCH_H : STAND_H) - 0.12; }
 
   spawn(p) {
+    if (this.mode === 'rounds' && p.team) {
+      const list = TEAM_SPAWNS[p.team], s = list[this.spot[p.team]++ % list.length];
+      Object.assign(p, { x: s.x, y: s.y, z: s.z, yaw: s.yaw, pitch: 0, crouch: false, hp: MAX_HP, alive: true, nades: 1, prot: 0 });
+      p.life++;
+      this.to(p, { t: 'spawn', x: s.x, y: s.y, z: s.z, yaw: s.yaw, life: p.life });
+      return;
+    }
     const others = [...this.players.values()].filter(o => o !== p && o.joined && o.alive && !(p.team && o.team === p.team));
     const scored = SPAWNS.map(s => ({ s, d: others.length ? Math.min(...others.map(o => Math.hypot(o.x - s.x, o.z - s.z))) : Math.random() * 100 }))
       .sort((a, b) => b.d - a.d);
@@ -519,6 +578,7 @@ class HostCore {
   damage(att, t, dmg, info) {
     if (att !== t && att.team && att.team === t.team) return; // cùng đội: không mất máu
     if (att !== t && Date.now() < (t.prot || 0)) return;       // vừa hồi sinh: bất tử 1.5 giây
+    if (this.mode === 'rounds' && this.rs.st !== 'live') return; // ngoài thời gian round: không mất máu
     t.hp = Math.max(0, t.hp - dmg);
     this.bc({ t: 'hit', from: att.id, to: t.id, dmg, hp: t.hp, back: !!info.back, head: !!info.head, x: info.x, y: info.y, z: info.z });
     if (t.hp <= 0) {
@@ -589,8 +649,15 @@ class HostCore {
         if (p.joined) return;
         p.name = String(m.name || '').replace(/[<>]/g, '').trim().slice(0, 16) || p.name;
         p.joined = true;
-        this.spawn(p);
-        this.bc({ t: 'sys', msg: `${p.name} đã vào trận` });
+        if (this.mode === 'rounds') {
+          if (!p.team) p.team = this.smallerTeam();
+          if (this.rs.st === 'live' || this.rs.st === 'end') { p.alive = false; this.to(p, { t: 'sys', msg: 'Round đang diễn ra — bạn sẽ vào chơi từ round sau' }); }
+          else this.spawn(p);
+          this.bc({ t: 'sys', msg: `${p.name} đã vào trận — phe ${TEAM_NAME[p.team]}` });
+        } else {
+          this.spawn(p);
+          this.bc({ t: 'sys', msg: `${p.name} đã vào trận` });
+        }
         break;
       case 's':
         if (!p.joined || !p.alive || m.life !== p.life) return;
@@ -649,6 +716,7 @@ class HostCore {
       if (n.t <= 0) { this.nades.splice(i, 1); this.explode(n); }
     }
     for (const p of this.players.values()) if (p.bot) this.botThink(p, dt, now);
+    if (this.mode === 'rounds') this.roundTick(now);
     // vật phẩm: sinh ngẫu nhiên + nhặt
     if (now >= this.nextWave) {
       this.nextWave = now + ITEM.wave; this.items = [];
@@ -666,11 +734,13 @@ class HostCore {
     for (const p of [...this.players.values()]) {
       if (p.remote && now - p.lastSeen > 10000) { this.remove(p.id); p.kick?.(); continue; }
       if (!p.joined) continue;
-      if (!p.alive && p.respawnAt && now >= p.respawnAt) { p.respawnAt = 0; this.spawn(p); }
+      if (!p.alive && p.respawnAt && now >= p.respawnAt && this.mode !== 'rounds') { p.respawnAt = 0; this.spawn(p); }
       list.push({ id: p.id, n: p.name, col: p.color, x: +p.x.toFixed(3), y: +p.y.toFixed(3), z: +p.z.toFixed(3),
         yaw: +p.yaw.toFixed(3), pitch: +p.pitch.toFixed(3), c: p.crouch ? 1 : 0, w: p.w, hp: p.hp, al: p.alive ? 1 : 0, k: p.kills, d: p.deaths, tm: p.team || 0, b: p.bot ? 1 : 0 });
     }
-    this.bc({ t: 'snap', md: this.mode, p: list, it: this.items.map(i => [i.id, i.type, i.x, i.y, i.z]), iw: Math.max(0, this.nextWave - now) });
+    const R = this.rs;
+    const rd = this.mode === 'rounds' ? { n: R.n, st: R.st, left: Math.max(0, R.until - now), sc: [R.sc[1], R.sc[2]] } : undefined;
+    this.bc({ t: 'snap', md: this.mode, rd, p: list, it: this.items.map(i => [i.id, i.type, i.x, i.y, i.z]), iw: Math.max(0, this.nextWave - now) });
   }
 }
 
@@ -1675,9 +1745,9 @@ function hitMarker(red) {
   const h = $('hitmark'); h.classList.toggle('red', red); h.style.opacity = 1;
   clearTimeout(hitTimer); hitTimer = setTimeout(() => { h.style.opacity = 0; }, 180);
 }
-function centerMsg(text) {
+function centerMsg(text, ms = 1400) {
   const c = $('center'); c.textContent = text; c.style.opacity = 1;
-  clearTimeout(centerTimer); centerTimer = setTimeout(() => { c.style.opacity = 0; }, 1400);
+  clearTimeout(centerTimer); centerTimer = setTimeout(() => { c.style.opacity = 0; }, ms);
 }
 function damageFlash() {
   const f = $('flash'); f.style.transition = 'none'; f.style.opacity = 1;
@@ -1708,22 +1778,34 @@ function addChat(name, color, msg) {
 let scoreShown = false;
 function showScore(on) { scoreShown = on; $('score').classList.toggle('hidden', !on); if (on) renderScore(); }
 function updateTeamScore() {
-  const el = $('teamscore'), on = gameMode === 'bots';
+  const el = $('teamscore'), on = gameMode !== 'ffa';
   el.classList.toggle('hidden', !on);
   if (!on) return;
-  let a = 0, b = 0;
-  for (const p of lastSnap) { if (p.b) b += p.k; else a += p.k; }
-  const html = `<span class="a">ĐỘI BẠN ${a}</span> : <span class="b">${b} BOT</span>`;
+  let html;
+  if (gameMode === 'rounds' && roundInfo) {
+    const R = roundInfo, al = [0, 0, 0];
+    for (const p of lastSnap) if (p.al && p.tm) al[p.tm]++;
+    const left = Math.max(0, Math.ceil((R.left - (performance.now() - roundInfoAt)) / 1000));
+    const clock = `${Math.floor(left / 60)}:${String(left % 60).padStart(2, '0')}`;
+    const st = R.st === 'pre' ? `Chuẩn bị ${left}s` : R.st === 'live' ? clock : R.st === 'end' ? 'Hết round' : 'Chờ đủ 2 phe';
+    html = `<span class="t1">XANH ${R.sc[0]}</span> : <span class="t2">${R.sc[1]} ĐỎ</span>`
+      + `<small>Round ${R.n || '-'} · ${st} · còn sống ${al[1]} vs ${al[2]} · bạn ở phe <span class="t${myTeam}">${TEAM_NAME[myTeam] || '?'}</span> · thắng ${ROUND.win} round</small>`;
+  } else {
+    let a = 0, b = 0;
+    for (const p of lastSnap) { if (p.b) b += p.k; else a += p.k; }
+    html = `<span class="a">ĐỘI BẠN ${a}</span> : <span class="b">${b} BOT</span>`;
+  }
   if (el.innerHTML !== html) el.innerHTML = html;
 }
 function renderScore() {
   const body = $('scorebody'); body.replaceChildren();
-  for (const p of [...lastSnap].sort((a, b) => (a.b || 0) - (b.b || 0) || b.k - a.k || a.d - b.d)) {
+  const grp = (p) => gameMode === 'rounds' ? (p.tm === myTeam ? 0 : 1) : (p.b || 0);
+  for (const p of [...lastSnap].sort((a, b) => grp(a) - grp(b) || b.k - a.k || a.d - b.d)) {
     const tr = document.createElement('tr'); if (p.id === myId) tr.className = 'me';
     const td = document.createElement('td'), dot = document.createElement('span');
     dot.className = 'dot'; dot.style.background = hex(p.col);
     td.append(dot, document.createTextNode(p.n + (p.al ? '' : ' 💀')));
-    if (gameMode === 'bots') td.style.color = p.b ? '#ff8a7d' : '#9dffb4';
+    if (gameMode !== 'ffa') td.style.color = p.tm === myTeam ? '#9dffb4' : '#ff8a7d';
     const k = document.createElement('td'); k.textContent = p.k;
     const d = document.createElement('td'); d.textContent = p.d;
     tr.append(td, k, d); body.append(tr);
@@ -1734,7 +1816,7 @@ function renderScore() {
 // Mạng P2P (PeerJS): người tạo phòng = host, chạy HostCore
 // =====================================================================
 let isHost = false, core = null, peer = null, hostConn = null, inGame = false, roomCode = '';
-let myId = null, myColor = 0xffffff, lastSnap = [], gameMode = 'ffa', myTeam = 0;
+let myId = null, myColor = 0xffffff, lastSnap = [], gameMode = 'ffa', myTeam = 0, roundInfo = null, roundInfoAt = 0;
 const names = new Map(), remotes = new Map();
 let me = null, deathT = 0, deathBy = null;
 const status = (t) => { $('status').textContent = t; };
@@ -1775,8 +1857,10 @@ function enterGame() {
 
 // đọc lựa chọn chế độ trên menu; chủ phòng đổi được giữa trận
 function applyMode() {
-  const mode = $('mode').value, n = Math.max(1, Math.min(BOT_MAX, parseInt($('botn').value, 10) || 6)), d = +$('botd').value;
-  $('botopts').classList.toggle('hidden', mode !== 'bots');
+  const mode = $('mode').value, raw = parseInt($('botn').value, 10), d = +$('botd').value;
+  const n = Math.max(mode === 'bots' ? 1 : 0, Math.min(BOT_MAX, Number.isNaN(raw) ? 6 : raw));
+  $('botopts').classList.toggle('hidden', mode === 'ffa');
+  $('botnlabel').textContent = mode === 'rounds' ? 'Số bot (chia đều 2 phe)' : 'Số bot';
   store.set('ka_mode', mode); store.set('ka_botn', String(n)); store.set('ka_botd', String(d));
   if (isHost && core) core.setMode(mode, n, d);
 }
@@ -1861,7 +1945,7 @@ function onMsg(m) {
   switch (m.t) {
     case 'welcome': myId = m.id; myColor = m.color; break;
     case 'snap': {
-      lastSnap = m.p; gameMode = m.md || 'ffa';
+      lastSnap = m.p; gameMode = m.md || 'ffa'; roundInfo = m.rd || null; roundInfoAt = performance.now();
       myTeam = (m.p.find(s => s.id === myId) || {}).tm || 0;
       const seen = new Set();
       for (const s of m.p) {
@@ -1871,7 +1955,7 @@ function onMsg(m) {
         const r = getRemote(s);
         r.tgt.set(s.x, s.y, s.z); r.tyaw = s.yaw; r.tpitch = s.pitch; r.crouch = !!s.c; r.w = s.w;
         // tên màu xanh = đồng đội, đỏ = đối thủ (chế độ đánh bot)
-        const rel = gameMode === 'bots' ? (s.tm && s.tm === myTeam ? 'ally' : 'enemy') : 'none';
+        const rel = gameMode !== 'ffa' ? (s.tm && s.tm === myTeam ? 'ally' : 'enemy') : 'none';
         if (r.rel !== rel) {
           r.rel = rel; r.av.g.remove(r.av.tag);
           r.av.tag = nameTag(s.n, rel === 'ally' ? '#7dff9a' : rel === 'enemy' ? '#ff6b5b' : '#fff'); r.av.g.add(r.av.tag);
@@ -1945,6 +2029,15 @@ function onMsg(m) {
     case 'chat': addChat(m.name, m.color, m.msg); break;
     case 'sys': addChat(null, 0, m.msg); break;
     case 'wave': SFX.pickup(); toast('Vật phẩm mới đã xuất hiện!'); break;
+    case 'round':
+      if (m.ev === 'start') centerMsg(`ROUND ${m.n} — CHUẨN BỊ`, 2500);
+      else if (m.ev === 'go') { centerMsg('BẮT ĐẦU!', 1200); SFX.kill(); }
+      else if (m.ev === 'end') {
+        const txt = !m.win ? 'HÒA ROUND' : m.match ? `PHE ${TEAM_NAME[m.win]} THẮNG TRẬN! (${m.sc[0]} - ${m.sc[1]})` : `PHE ${TEAM_NAME[m.win]} THẮNG ROUND ${m.n}`;
+        centerMsg(txt + (m.win === myTeam ? ' 🎉' : ''), 4000);
+        if (m.win === myTeam) SFX.kill();
+      }
+      break;
   }
 }
 function die(killer) {
@@ -2220,7 +2313,11 @@ function update(dt) {
   if (!P.alive) {
     const left = Math.max(0, Math.ceil(RESPAWN_MS / 1000 - deathT)), who = names.get(deathBy);
     const d = $('dead'); d.replaceChildren(document.createTextNode(`Bạn đã bị ${who ? who.n : '???'} hạ gục`));
-    const sm = document.createElement('small'); sm.textContent = left > 0 ? `Hồi sinh sau ${left} giây...` : 'Đang hồi sinh...';
+    const sm = document.createElement('small');
+    if (gameMode === 'rounds') {
+      const mates = lastSnap.filter(p => p.al && p.tm === myTeam && p.id !== myId).length;
+      sm.textContent = mates ? `Chờ round sau — phe bạn còn ${mates} người` : 'Chờ round sau...';
+    } else sm.textContent = left > 0 ? `Hồi sinh sau ${left} giây...` : 'Đang hồi sinh...';
     d.append(sm);
   }
   sendT -= dt;
@@ -2273,9 +2370,10 @@ function applyGfx(high) {
   if (composer) { composer.setPixelRatio(renderer.getPixelRatio()); composer.setSize(innerWidth, innerHeight); }
 }
 $('gfx').value = GFX.high ? 'high' : 'low';
-$('mode').value = store.get('ka_mode', 'ffa') === 'bots' ? 'bots' : 'ffa';
+$('mode').value = ['bots', 'rounds'].includes(store.get('ka_mode', 'ffa')) ? store.get('ka_mode', 'ffa') : 'ffa';
 $('botn').value = store.get('ka_botn', '6'); $('botd').value = ['0', '1', '2'].includes(store.get('ka_botd', '1')) ? store.get('ka_botd', '1') : '1';
-$('botopts').classList.toggle('hidden', $('mode').value !== 'bots');
+$('botopts').classList.toggle('hidden', $('mode').value === 'ffa');
+$('botnlabel').textContent = $('mode').value === 'rounds' ? 'Số bot (chia đều 2 phe)' : 'Số bot';
 for (const id of ['mode', 'botn', 'botd']) $(id).addEventListener('change', applyMode);
 $('gfx').addEventListener('change', (e) => applyGfx(e.target.value === 'high'));
 addEventListener('resize', () => {
