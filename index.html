@@ -37,6 +37,17 @@
   #hud { position: fixed; inset: 0; pointer-events: none; z-index: 10; }
   #cross { position: absolute; left: 50%; top: 50%; width: 22px; height: 22px; transform: translate(-50%,-50%); }
   #cross i { position: absolute; background: rgba(255,255,255,.9); box-shadow: 0 0 2px #000; }
+  #adsret { position: absolute; left: 50%; top: 50%; width: 0; height: 0; opacity: 0; pointer-events: none; }
+  #adsret i, #adsret b { position: absolute; display: block; }
+  #adsret .dot { left: -2px; top: -2px; width: 4px; height: 4px; border-radius: 50%; background: #ff2a1f; box-shadow: 0 0 4px #ff2a1f, 0 0 1px #000; }
+  #adsret .ring { left: -17px; top: -17px; width: 30px; height: 30px; border: 2px solid rgba(255,48,36,.9); border-radius: 50%; box-shadow: 0 0 4px rgba(255,40,30,.7); display: none; }
+  #adsret b { background: #ff2a1f; box-shadow: 0 0 3px #ff2a1f; }
+  #adsret .t { left: -1px; top: -27px; width: 2px; height: 8px; }
+  #adsret .bt { left: -1px; top: 19px; width: 2px; height: 8px; }
+  #adsret .l { top: -1px; left: -27px; width: 8px; height: 2px; }
+  #adsret .r { top: -1px; left: 19px; width: 8px; height: 2px; }
+  #adsret.ak .ring { display: block; }
+  #adsret.ak b { display: none; }
   #hitmark { position: absolute; left: 50%; top: 50%; width: 30px; height: 30px; transform: translate(-50%,-50%) rotate(45deg); opacity: 0; transition: opacity .15s; }
   #hitmark i { position: absolute; background: #fff; }
   #hitmark.red i { background: #ff3b30; }
@@ -155,6 +166,7 @@
 <div id="hud" class="hidden">
   <div id="scope" class="hidden"><i></i></div>
   <div id="cross"></div>
+  <div id="adsret"><i class="ring"></i><i class="dot"></i><b class="t"></b><b class="bt"></b><b class="l"></b><b class="r"></b></div>
   <div id="hitmark"><i style="left:14px;top:0;width:2px;height:10px"></i><i style="left:14px;top:20px;width:2px;height:10px"></i><i style="top:14px;left:0;height:2px;width:10px"></i><i style="top:14px;left:20px;height:2px;width:10px"></i></div>
   <div id="flash"></div>
   <div id="room"></div>
@@ -2266,6 +2278,12 @@ function update(dt) {
     $('cross').style.opacity = String(Math.max(0, 1 - adsK * 2));
   }
   $('scope').classList.toggle('hidden', !(weapon === 'sniper' && adsK > 0.6));
+  { // tâm ngắm đỏ khi ngắm súng lục (chấm + 4 vạch) / AK (vòng tròn + chấm)
+    const r = $('adsret'), on = (weapon === 'pistol' || weapon === 'ak') && vm.visible && P.alive;
+    const op = on ? Math.max(0, Math.min(1, (adsK - 0.35) * 2.5)) : 0;
+    if (r._op !== op) { r._op = op; r.style.opacity = String(op); }
+    if (on && r._w !== weapon) { r._w = weapon; r.classList.toggle('ak', weapon === 'ak'); }
+  }
   if (inputActive()) {
     if (weapon === 'knife') { if (mouseL) tryAttack('slash'); else if (mouseR) tryAttack('stab'); }
     else if (weapon === 'axe') { if (mouseL) tryAttack('chop'); else if (mouseR) tryAttack('heavy'); }
