@@ -144,7 +144,7 @@
     <div id="status"></div>
 
     <div class="keys">
-      <b>W A S D</b><span>Di chuyển · Shift đi chậm</span>
+      <b>W A S D / ↑ ← ↓ →</b><span>Di chuyển (WASD hoặc 4 phím mũi tên) · Shift đi chậm</span>
       <b>Space</b><span>Nhảy (giữ để nhảy liên tục, lắc chuột + A/D để bunny hop)</span>
       <b>C</b><span>Ngồi (ngồi lúc đang nhảy để lên chỗ cao)</span>
       <b>1 – 6</b><span>Dao / Súng lục / Bom / Súng bắn tỉa / Rìu / AK-47 · Q: vũ khí trước</span>
@@ -1094,7 +1094,7 @@ function moveAxis(ax, d) {
 function physics(dt) {
   const active = inputActive();
   let fx = 0, fz = 0;
-  if (active) { if (keys.KeyW) fz -= 1; if (keys.KeyS) fz += 1; if (keys.KeyA) fx -= 1; if (keys.KeyD) fx += 1; }
+  if (active) { if (keys.KeyW || keys.ArrowUp) fz -= 1; if (keys.KeyS || keys.ArrowDown) fz += 1; if (keys.KeyA || keys.ArrowLeft) fx -= 1; if (keys.KeyD || keys.ArrowRight) fx += 1; }
   const s = Math.sin(P.yaw), c = Math.cos(P.yaw);
   let wx = s * fz + c * fx, wz = c * fz - s * fx;
   const wl = Math.hypot(wx, wz); if (wl > 0) { wx /= wl; wz /= wl; }
@@ -1688,6 +1688,7 @@ addEventListener('keydown', (e) => {
   }
   if (e.code === 'Tab') { e.preventDefault(); if (inGame) showScore(true); }
   if (!locked) return;
+  if (e.code.startsWith('Arrow')) e.preventDefault(); // mũi tên = di chuyển, không cuộn trang
   keys[e.code] = true;
   if (e.repeat) return;
   switch (e.code) {
@@ -2306,7 +2307,7 @@ function update(dt) {
 
   if (emoteCam > 0) {
     emoteCam -= dt;
-    if (inputActive() && (keys.KeyW || keys.KeyA || keys.KeyS || keys.KeyD || keys.Space)) { emoteCam = 0; if (me && me.act && AV_ANIMS[me.act] && EMOTES.includes(me.act)) me.act = null; }
+    if (inputActive() && (keys.KeyW || keys.KeyA || keys.KeyS || keys.KeyD || keys.ArrowUp || keys.ArrowDown || keys.ArrowLeft || keys.ArrowRight || keys.Space)) { emoteCam = 0; if (me && me.act && AV_ANIMS[me.act] && EMOTES.includes(me.act)) me.act = null; }
   }
   if (me) {
     me.speed = P.onGround ? speed : 0; me.crouch = P.crouch; me.pitch = P.pitch; me.alive = P.alive; me.w = WCODE[weapon];
