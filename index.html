@@ -138,7 +138,8 @@
     </div>
 
     <div id="lobby">
-      <button id="hostBtn" class="btn primary big">TẠO PHÒNG MỚI</button>
+      <button id="hostBtn" class="btn primary big">MỞ PHÒNG CỦA TÔI</button>
+      <div id="myroom" style="font-size:13px;color:#aab3c2;margin-top:6px;text-align:center">Mã phòng cố định của bạn: <b id="myroomcode" style="color:#fff;letter-spacing:1px"></b> — link mời luôn giữ nguyên · <a href="#" id="newcode" style="color:#7fb4ff">đổi mã</a></div>
       <div class="or">hoặc vào phòng của bạn bè</div>
       <div class="row">
         <input id="code" type="text" maxlength="6" placeholder="Mã phòng (VD: K7Q2M)" autocomplete="off" style="text-transform:uppercase">
@@ -1866,6 +1867,12 @@ function net(m) {
   if (isHost) core?.handle(myId, m);
   else if (hostConn && hostConn.open) { try { hostConn.send(m); } catch { /* ignore */ } }
 }
+// mã phòng cố định của chủ phòng: lưu lại để link mời không đổi giữa các lần mở phòng
+function myRoomCode() {
+  let c = String(store.get('ka_room', '') || '').toUpperCase();
+  if (!/^[A-Z0-9]{4,6}$/.test(c)) { c = randomCode(); store.set('ka_room', c); }
+  return c;
+}
 function randomCode() {
   const A = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; let s = '';
   for (let i = 0; i < 5; i++) s += A[Math.floor(Math.random() * A.length)];
@@ -1907,7 +1914,7 @@ function applyMode() {
 }
 function hostGame() {
   initAudio();
-  isHost = true; roomCode = randomCode();
+  isHost = true; roomCode = myRoomCode();
   core = new HostCore();
   core.add((m) => onMsg(m), false);   // người chơi của chủ phòng (id 1)
   core.welcome(1);
@@ -1933,7 +1940,11 @@ function openHostPeer(tries) {
   });
   peer.on('disconnected', () => { try { peer.reconnect(); } catch { /* ignore */ } });
   peer.on('error', (e) => {
-    if (e.type === 'unavailable-id' && tries < 3) { peer.destroy(); roomCode = randomCode(); showInvite(); openHostPeer(tries + 1); }
+    if (e.type === 'unavailable-id') { // mã đang bị giữ (tab cũ vừa đóng chưa nhả) -> thử lại đúng mã đó, giữ link cố định
+      try { peer.destroy(); } catch { /* ignore */ }
+      if (tries < 12) { status(`Mã phòng ${roomCode} đang bận (tab cũ chưa nhả) — đang thử mở lại...`); setTimeout(() => openHostPeer(tries + 1), 4000); }
+      else status(`Mã phòng ${roomCode} đang được mở ở tab hoặc máy khác. Đóng tab đó rồi tải lại trang (hoặc bấm "đổi mã").`);
+    }
     else if (e.type !== 'peer-unavailable') status('Lỗi mạng: ' + e.type + ' — bạn vẫn chơi được, nhưng người khác có thể không vào được.');
   });
 }
@@ -1947,8 +1958,10 @@ function joinGame() {
   roomCode = code;
   peer = new Peer();
   const fail = (msg) => { status(msg); $('joinBtn').disabled = $('hostBtn').disabled = false; };
-  const timer = setTimeout(() => { if (!inGame) fail('Không kết nối được (hết thời gian). Có thể mạng chặn kết nối P2P — thử mạng khác.'); }, 15000);
-  peer.on('open', () => {
+  let timer = 0;
+  const tryConnect = () => {
+    clearTimeout(timer);
+    timer = setTimeout(() => { if (!inGame) fail('Không kết nối được (hết thời gian). Có thể mạng chặn kết nối P2P — thử mạng khác.'); }, 15000);
     hostConn = peer.connect(PEER_PREFIX + code, { reliable: true, serialization: 'json' });
     hostConn.on('open', () => { clearTimeout(timer); status(''); });
     hostConn.on('data', (m) => {
@@ -1956,14 +1969,21 @@ function joinGame() {
       if (m.t === 'welcome' && !inGame) { enterGame(); showInvite(); lockPointer(); }
     });
     hostConn.on('close', () => {
-      status('Mất kết nối với chủ phòng. Tải lại trang để vào phòng khác.');
+      if (!inGame) return;
+      // chủ phòng thoát / tải lại trang: tự vào lại cùng link khi chủ phòng mở lại phòng
+      status('Chủ phòng đã thoát — đang chờ chủ phòng mở lại phòng ' + code + '...');
       $('resume').disabled = true;
       if (locked) document.exitPointerLock();
+      setTimeout(() => { location.href = location.pathname + '?room=' + code + '&auto=1'; }, 2500);
     });
-  });
+  };
+  peer.on('open', tryConnect);
   peer.on('error', (e) => {
     clearTimeout(timer);
-    fail(e.type === 'peer-unavailable' ? 'Không tìm thấy phòng ' + code + '. Kiểm tra lại mã, hoặc chủ phòng đã thoát.' : 'Lỗi mạng: ' + e.type);
+    if (e.type === 'peer-unavailable' && !inGame) { // chủ phòng chưa mở phòng -> chờ và thử lại
+      status('Chủ phòng chưa mở phòng ' + code + ' — đang chờ, phòng mở là tự vào...');
+      setTimeout(tryConnect, 3000);
+    } else if (!inGame) fail('Lỗi mạng: ' + e.type);
   });
   setInterval(() => net({ t: 'ping' }), 2000);
 }
@@ -2104,8 +2124,20 @@ $('copy').addEventListener('click', () => {
     $('code').value = rc.toUpperCase().slice(0, 6);
     $('joinBtn').classList.add('primary'); $('hostBtn').classList.remove('primary');
     status('Bạn được mời vào phòng ' + $('code').value + '. Nhập tên rồi bấm VÀO PHÒNG.');
+    if (new URLSearchParams(location.search).get('auto') === '1') setTimeout(joinGame, 300); // tự vào lại sau khi chủ phòng thoát
   }
 }
+$('myroomcode').textContent = myRoomCode();
+$('newcode').addEventListener('click', (e) => {
+  e.preventDefault();
+  const v = prompt('Nhập mã phòng mới (4–6 chữ cái hoặc số), để trống để lấy mã ngẫu nhiên.\nLưu ý: đổi mã thì link mời cũ không dùng được nữa.', '');
+  if (v === null) return;
+  const c = v.trim().toUpperCase();
+  if (c && !/^[A-Z0-9]{4,6}$/.test(c)) { alert('Mã phải gồm 4–6 chữ cái (không dấu) hoặc số.'); return; }
+  store.set('ka_room', c || randomCode()); $('myroomcode').textContent = myRoomCode();
+});
+// đóng tab thì nhả mã phòng ngay để lần sau mở lại được đúng mã
+addEventListener('pagehide', () => { try { peer?.destroy(); } catch { /* ignore */ } });
 
 // =====================================================================
 // Vũ khí + hành động
