@@ -119,6 +119,7 @@
         <option value="ffa">Đấu tự do — ai cũng là đối thủ</option>
         <option value="bots">Đánh bot — bạn bè vào phòng sẽ cùng đội với bạn</option>
         <option value="rounds">Đấu round 2 phe — XANH vs ĐỎ, chết chờ round sau</option>
+        <option value="pvp">Người với người 2 phe — tự chọn phe, không có bot</option>
       </select>
       <div id="botopts" class="row hidden" style="margin-top:8px;align-items:center">
         <span id="botnlabel" style="font-size:13px;color:#aab3c2">Số bot</span>
@@ -126,6 +127,14 @@
         <span style="font-size:13px;color:#aab3c2">Độ khó</span>
         <select id="botd" style="flex:1"><option value="0">Dễ</option><option value="1">Thường</option><option value="2">Khó</option></select>
       </div>
+    </div>
+    <div id="teambox">
+      <label for="team">Phe của bạn (dùng cho chế độ 2 phe)</label>
+      <select id="team">
+        <option value="0">Tự động — vào phe đang ít người hơn</option>
+        <option value="1">Phe XANH</option>
+        <option value="2">Phe ĐỎ</option>
+      </select>
     </div>
 
     <div id="lobby">
@@ -353,7 +362,7 @@ class HostCore {
     this.players = new Map(); this.nextId = 1; this.pending = [];
     this.items = []; this.itemId = 1; this.nextWave = Date.now() + 3000;
     this.nades = []; this.nadeId = 1; this.lastTick = Date.now();
-    this.mode = 'ffa'; this.botDiff = 1; this.botSeq = 0;
+    this.mode = 'ffa'; this.pvp = false; this.botDiff = 1; this.botSeq = 0;
     this.rs = { n: 0, st: 'wait', until: 0, sc: [0, 0, 0] }; this.spot = { 1: 0, 2: 0 };
   }
   teamCount(team) { let n = 0; for (const p of this.players.values()) if ((p.joined || !p.bot) && p.team === team) n++; return n; }
@@ -388,24 +397,31 @@ class HostCore {
   }
   // đổi chế độ: 'ffa' (tự do) hoặc 'bots' (mọi người thật = đội 1, bot = đội 2)
   setMode(mode, n, diff) {
-    const was = this.mode, wasDiff = this.botDiff;
-    this.mode = mode === 'bots' || mode === 'rounds' ? mode : 'ffa';
+    const was = this.mode, wasDiff = this.botDiff, wasPvp = this.pvp;
+    this.pvp = mode === 'pvp'; // người với người: luật round 2 phe, không bot, mỗi người tự chọn phe
+    this.mode = this.pvp ? 'rounds' : mode === 'bots' || mode === 'rounds' ? mode : 'ffa';
     this.botDiff = Math.max(0, Math.min(2, diff | 0));
-    const want = this.mode === 'ffa' ? 0 : Math.max(0, Math.min(BOT_MAX, n | 0));
+    const want = this.mode === 'ffa' || this.pvp ? 0 : Math.max(0, Math.min(BOT_MAX, n | 0));
     let bots = [...this.players.values()].filter(p => p.bot);
     const botsBefore = bots.length;
     if (this.mode !== was) { for (const b of bots) this.players.delete(b.id); bots = []; } // đổi chế độ: tạo lại bot cho đúng phe
     // chia phe cho người thật
     const humans = [...this.players.values()].filter(p => !p.bot).sort((a, b) => a.id - b.id);
-    if (this.mode === 'rounds') { if (was !== 'rounds') humans.forEach((h, i) => { h.team = i % 2 ? 2 : 1; }); }
+    if (this.mode === 'rounds') {
+      if (was !== 'rounds') { // ai đã chọn phe thì vào phe đó, còn lại chia đều
+        for (const h of humans) h.team = h.pref || 0;
+        for (const h of humans) if (!h.team) h.team = this.smallerTeam();
+      }
+    }
     else for (const h of humans) h.team = this.mode === 'bots' ? 1 : 0;
     for (let i = want; i < bots.length; i++) this.players.delete(bots[i].id);
     for (let i = bots.length; i < want; i++) this.addBot(this.mode === 'rounds' ? this.smallerTeam() : 2);
-    const changed = this.mode !== was || botsBefore !== want || wasDiff !== this.botDiff;
+    const changed = this.mode !== was || botsBefore !== want || wasDiff !== this.botDiff || wasPvp !== this.pvp;
     if (this.mode === 'rounds') { if (changed) { this.rs.sc = [0, 0, 0]; this.rs.st = 'wait'; } }
     else if (was === 'rounds') for (const p of this.players.values()) if (p.joined && !p.alive) p.respawnAt = Date.now() + 1000;
     if (changed)
       this.bc({ t: 'sys', msg: this.mode === 'bots' ? `Chế độ đánh bot: ${want} bot (${['Dễ', 'Thường', 'Khó'][this.botDiff]}) — tất cả người chơi cùng một đội`
+        : this.pvp ? `Chế độ người với người 2 phe (XANH – ĐỎ) — bấm Esc để chọn phe, thắng ${ROUND.win} round là thắng trận`
         : this.mode === 'rounds' ? `Chế độ round 2 phe (XANH – ĐỎ), ${want} bot — thắng ${ROUND.win} round là thắng trận` : 'Chế độ đấu tự do' });
   }
   addBot(team = 2) {
@@ -661,8 +677,9 @@ class HostCore {
         if (p.joined) return;
         p.name = String(m.name || '').replace(/[<>]/g, '').trim().slice(0, 16) || p.name;
         p.joined = true;
+        p.pref = m.tm === 1 || m.tm === 2 ? m.tm : 0;
         if (this.mode === 'rounds') {
-          if (!p.team) p.team = this.smallerTeam();
+          if (p.pref) p.team = p.pref; else if (!p.team) p.team = this.smallerTeam();
           if (this.rs.st === 'live' || this.rs.st === 'end') { p.alive = false; this.to(p, { t: 'sys', msg: 'Round đang diễn ra — bạn sẽ vào chơi từ round sau' }); }
           else this.spawn(p);
           this.bc({ t: 'sys', msg: `${p.name} đã vào trận — phe ${TEAM_NAME[p.team]}` });
@@ -695,6 +712,17 @@ class HostCore {
       case 'reload':
         if (p.alive) this.bc({ t: 'act', id, k: 'reload' }, p);
         break;
+      case 'team': { // người chơi tự đổi phe (chế độ 2 phe)
+        p.pref = m.tm === 1 || m.tm === 2 ? m.tm : 0;
+        if (!p.joined || this.mode !== 'rounds' || now < (p.nextTeam || 0)) return;
+        const nt = p.pref || p.team || this.smallerTeam();
+        if (nt === p.team) return;
+        p.nextTeam = now + 1000; p.team = nt;
+        this.bc({ t: 'sys', msg: `${p.name} đã chuyển sang phe ${TEAM_NAME[nt]}` });
+        if (this.rs.st === 'live' || this.rs.st === 'end') { if (p.alive) { p.alive = false; this.to(p, { t: 'out' }); } }
+        else this.spawn(p); // đang chờ / chuẩn bị: ra ngay chỗ xuất phát của phe mới
+        break;
+      }
       case 'throw':
         if (!p.joined || !p.alive || p.nades <= 0 || now < (p.nextThrow || 0)) return;
         p.nades--; p.nextThrow = now + 700;
@@ -1860,7 +1888,7 @@ function enterGame() {
   if (!isHost) $('modebox').classList.add('hidden'); // chỉ chủ phòng chọn chế độ
   const name = nameInput.value.trim() || 'Player';
   store.set('ka_name', name);
-  net({ t: 'join', name });
+  net({ t: 'join', name, tm: +$('team').value || 0 });
   me = { av: makeAvatar(myColor, name), act: null, actT: 0, speed: 0, crouch: false, pitch: 0, alive: true, w: 0 };
   scene.add(me.av.g);
   hud.classList.remove('hidden');
@@ -1872,7 +1900,7 @@ function enterGame() {
 function applyMode() {
   const mode = $('mode').value, raw = parseInt($('botn').value, 10), d = +$('botd').value;
   const n = Math.max(mode === 'bots' ? 1 : 0, Math.min(BOT_MAX, Number.isNaN(raw) ? 6 : raw));
-  $('botopts').classList.toggle('hidden', mode === 'ffa');
+  $('botopts').classList.toggle('hidden', mode === 'ffa' || mode === 'pvp');
   $('botnlabel').textContent = mode === 'rounds' ? 'Số bot (chia đều 2 phe)' : 'Số bot';
   store.set('ka_mode', mode); store.set('ka_botn', String(n)); store.set('ka_botd', String(d));
   if (isHost && core) core.setMode(mode, n, d);
@@ -2041,6 +2069,7 @@ function onMsg(m) {
       break;
     case 'chat': addChat(m.name, m.color, m.msg); break;
     case 'sys': addChat(null, 0, m.msg); break;
+    case 'out': die(-1); break; // đổi phe giữa round: chờ round sau
     case 'wave': SFX.pickup(); toast('Vật phẩm mới đã xuất hiện!'); break;
     case 'round':
       if (m.ev === 'start') centerMsg(`ROUND ${m.n} — CHUẨN BỊ`, 2500);
@@ -2331,7 +2360,7 @@ function update(dt) {
   if (isGun(weapon)) { const g = Math.round(spreadNow() * 260); if (g !== lastCross) { lastCross = g; setCrosshair(); } }
   if (!P.alive) {
     const left = Math.max(0, Math.ceil(RESPAWN_MS / 1000 - deathT)), who = names.get(deathBy);
-    const d = $('dead'); d.replaceChildren(document.createTextNode(`Bạn đã bị ${who ? who.n : '???'} hạ gục`));
+    const d = $('dead'); d.replaceChildren(document.createTextNode(deathBy === -1 ? `Bạn đã đổi sang phe ${TEAM_NAME[myTeam] || ''}` : `Bạn đã bị ${who ? who.n : '???'} hạ gục`));
     const sm = document.createElement('small');
     if (gameMode === 'rounds') {
       const mates = lastSnap.filter(p => p.al && p.tm === myTeam && p.id !== myId).length;
@@ -2389,9 +2418,11 @@ function applyGfx(high) {
   if (composer) { composer.setPixelRatio(renderer.getPixelRatio()); composer.setSize(innerWidth, innerHeight); }
 }
 $('gfx').value = GFX.high ? 'high' : 'low';
-$('mode').value = ['bots', 'rounds'].includes(store.get('ka_mode', 'ffa')) ? store.get('ka_mode', 'ffa') : 'ffa';
+$('mode').value = ['bots', 'rounds', 'pvp'].includes(store.get('ka_mode', 'ffa')) ? store.get('ka_mode', 'ffa') : 'ffa';
+$('team').value = ['0', '1', '2'].includes(store.get('ka_team', '0')) ? store.get('ka_team', '0') : '0';
+$('team').addEventListener('change', () => { store.set('ka_team', $('team').value); if (inGame) net({ t: 'team', tm: +$('team').value || 0 }); });
 $('botn').value = store.get('ka_botn', '6'); $('botd').value = ['0', '1', '2'].includes(store.get('ka_botd', '1')) ? store.get('ka_botd', '1') : '1';
-$('botopts').classList.toggle('hidden', $('mode').value === 'ffa');
+$('botopts').classList.toggle('hidden', $('mode').value === 'ffa' || $('mode').value === 'pvp');
 $('botnlabel').textContent = $('mode').value === 'rounds' ? 'Số bot (chia đều 2 phe)' : 'Số bot';
 for (const id of ['mode', 'botn', 'botd']) $(id).addEventListener('change', applyMode);
 $('gfx').addEventListener('change', (e) => applyGfx(e.target.value === 'high'));
