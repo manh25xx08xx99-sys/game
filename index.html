@@ -235,7 +235,7 @@ const PISTOL = GUNS.pistol;
 // giữ chuột để ném xa: lực từ speedMin (thả ngay) tới speedMax (giữ đủ hold giây)
 const NADE = { fuse: 1.8, radius: 5, dmg: 110, speedMin: 7, speedMax: 25, hold: 1.0, max: 3, gravity: 18 };
 // mỗi wave (1 phút) xóa hết vật phẩm cũ và rải max vật phẩm mới
-const ITEM = { max: 8, wave: 60000, health: 50, ammo: 24, maxReserve: 96, speedTime: 8 };
+const ITEM = { max: 12, wave: 60000, health: 50, ammo: 24, maxReserve: 96, speedTime: 8 };
 const ITEM_INFO = {
   health: { label: '+50 Máu', w: 35 }, ammo: { label: '+Đạn (24 súng lục · 30 AK · 10 bắn tỉa)', w: 25 },
   nade: { label: '+1 Bom', w: 25 }, speed: { label: 'Tăng tốc 8 giây', w: 15 },
@@ -249,7 +249,7 @@ const BOT_MAX = 20, BOT_COLOR = 0x8e2b22;
 const ROUND = { pre: 4000, time: 120000, end: 5000, win: 7 }; // chuẩn bị 4s, mỗi round tối đa 2 phút, thắng 7 round = thắng trận
 const TEAM_NAME = ['', 'XANH', 'ĐỎ'], TEAM_COLOR = [0, 0x2f6fd6, 0xc0392b];
 const TEAM_SPAWNS = { 1: [], 2: [] };
-for (const z of [22.8, 21.6]) for (const x of [-11, -8, -5, -2, 1, 4, 7, 10]) {
+for (const z of [37.6, 36.4]) for (const x of [-11, -8, -5, -2, 1, 4, 7, 10]) {
   TEAM_SPAWNS[1].push({ x, y: 0, z: -z, yaw: Math.PI }); // phe XANH ở phía Bắc, nhìn về giữa
   TEAM_SPAWNS[2].push({ x, y: 0, z, yaw: 0 });          // phe ĐỎ ở phía Nam
 }
@@ -270,9 +270,47 @@ const rot = (x, z, k) => { for (let i = 0; i < k; i++) [x, z] = [-z, x]; return 
 const add4 = (x1, y1, z1, x2, y2, z2, type) => {
   for (let k = 0; k < 4; k++) { const [ax, az] = rot(x1, z1, k), [bx, bz] = rot(x2, z2, k); add(ax, y1, az, bx, y2, bz, type); }
 };
-// tường bao
-add(-26, 0, -26, 26, 6, -25, 'wall'); add(-26, 0, 25, 26, 6, 26, 'wall');
-add(-26, 0, -25, -25, 6, 25, 'wall'); add(25, 0, -25, 26, 6, 25, 'wall');
+// tường bao (bản đồ 80 x 80 m)
+const ARENA = 40;
+add(-ARENA - 1, 0, -ARENA - 1, ARENA + 1, 6, -ARENA, 'wall'); add(-ARENA - 1, 0, ARENA, ARENA + 1, 6, ARENA + 1, 'wall');
+add(-ARENA - 1, 0, -ARENA, -ARENA, 6, ARENA, 'wall'); add(ARENA, 0, -ARENA, ARENA + 1, 6, ARENA, 'wall');
+// ---- vòng ngoài (mở rộng) ----
+// tường đổ nát chỗ tường bao cũ: chia khu giữa và vòng ngoài, chừa lối đi ở giữa và ở góc
+add4(-18, 0, 25, -7.5, 3, 25.8, 'wall2');
+add4(7.5, 0, 25, 13, 3, 25.8, 'wall2');
+add4(15, 0, 25, 18, 1.2, 25.8, 'sandbag');    // đoạn tường sập còn thấp (nhảy qua / ngồi nấp)
+// container + bậc lên
+add4(-11, 0, 30, -4.5, 2.6, 32.5, 'container');
+add4(-4.4, 0, 30.6, -3.4, 1, 31.6, 'crate');
+// cụm thùng gỗ
+add4(3, 0, 29, 5, 2, 31, 'crate');
+add4(5, 0, 29.5, 6, 1, 30.5, 'crate');
+add4(2.2, 0, 31, 3, 1, 31.8, 'crate');
+// bao cát che chắn trước điểm xuất phát
+add4(-4, 0, 33.5, 4, 0.95, 34.3, 'sandbag');
+add4(-9.5, 0, 34.6, -8.5, 1.2, 35.6, 'barrel');
+add4(8.6, 0, 34.6, 9.4, 1.2, 35.4, 'barrel');
+// cột bê tông lớn
+add4(14, 0, 32, 15.8, 5, 33.8, 'pillar');
+add4(-22, 0, 28, -20.4, 5, 29.6, 'pillar');
+// tường chữ L
+add4(20, 0, 27, 20.6, 2.4, 31.5, 'wall2');
+add4(20.6, 0, 30.9, 24, 2.4, 31.5, 'wall2');
+// thùng phuy rải rác
+add4(10, 0, 27.5, 10.8, 1.2, 28.3, 'barrel');
+add4(11.2, 0, 28, 12, 1.2, 28.8, 'barrel');
+add4(-17, 0, 35, -16.2, 1.2, 35.8, 'barrel');
+// tháp thùng ở góc + bậc
+add4(31, 0, 31, 36, 2.6, 36, 'crate2');
+add4(29.9, 0, 33, 31, 1, 34, 'crate');
+// container dọc ở hông
+add4(28, 0, 12, 30.5, 2.6, 18.5, 'container');
+add4(30.6, 0, 16, 31.6, 1, 17, 'crate');
+// thùng gỗ ở cánh hông
+add4(33, 0, 4, 35, 2, 6, 'crate');
+add4(34, 0, 6, 35, 1, 7, 'crate');
+add4(27, 0, 3, 27.6, 2.4, 8, 'wall2');
+add4(25.5, 0, 22, 27, 1.1, 23.5, 'crate');
 // bục giữa + bậc thang Bắc/Nam
 add(-4, 0, -4, 4, 1.6, 4, 'concrete');
 for (const s of [1, -1]) for (let i = 0; i < 3; i++) {
@@ -296,14 +334,15 @@ add4(6.2, 0, 5.4, 7, 1.2, 6.2, 'barrel');
 add4(20, 0, 1.5, 20.8, 0.9, 5.5, 'sandbag');    // bao cát gần điểm hồi sinh
 add4(12.5, 0, 15.5, 13.5, 1, 16.5, 'crate');
 const SPAWNS = [];
-for (let k = 0; k < 4; k++) for (const [x, z] of [[22, 8], [8, 22]]) {
+for (let k = 0; k < 4; k++) for (const [x, z] of [[22, 8], [8, 22], [37, 10], [10, 37], [24, 36]]) {
   const [rx, rz] = rot(x, z, k); SPAWNS.push({ x: rx, y: 0, z: rz, yaw: Math.atan2(rx, rz) });
 }
 const COLL = BOXES.concat([[-200, -10, -200, 200, 0, 200, 'floor']]);
 // Các vị trí có thể xuất hiện vật phẩm (trên sàn, trên thùng, container, tháp, bục giữa)
 const ITEM_SPOTS = [[0, 1.6, 0]];
 for (let k = 0; k < 4; k++) {
-  for (const [x, y, z] of [[10, 2, 10], [15.25, 2.6, 7], [20, 2.6, 20], [6, 0, 0], [13, 0, 12], [0, 0, 11], [21, 0, 12], [3, 0, 16]]) {
+  for (const [x, y, z] of [[10, 2, 10], [15.25, 2.6, 7], [20, 2.6, 20], [6, 0, 0], [13, 0, 12], [0, 0, 11], [21, 0, 12], [3, 0, 16],
+    [33.5, 2.6, 33.5], [-7.75, 2.6, 31.25], [4, 2, 30], [0, 0, 29], [24, 0, 34], [33, 0, 24], [36, 0, 0]]) {
     const [rx, rz] = rot(x, z, k);
     if (!pointInMap(rx, y + 0.3, rz)) ITEM_SPOTS.push([rx, y, rz]);
   }
@@ -493,7 +532,7 @@ class HostCore {
       for (const a of [0, 0.5, -0.5, 1.0, -1.0, 1.6, -1.6]) {   // bị chặn thì thử lách sang hai bên
         const c = Math.cos(a), sn = Math.sin(a), vx = mx * c - mz * sn, vz = mx * sn + mz * c;
         const nx = p.x + vx * sp * dt, nz = p.z + vz * sp * dt;
-        if (Math.abs(nx) < 24.6 && Math.abs(nz) < 24.6 && !hitBox(nx, p.y + 0.46, nz, STAND_H - 0.46)) { p.x = nx; p.z = nz; break; }
+        if (Math.abs(nx) < ARENA - 0.4 && Math.abs(nz) < ARENA - 0.4 && !hitBox(nx, p.y + 0.46, nz, STAND_H - 0.46)) { p.x = nx; p.z = nz; break; }
       }
       // kẹt (không tiến được) -> đi vòng theo hướng ngẫu nhiên một lúc
       B.prog += dt;
@@ -693,7 +732,7 @@ class HostCore {
         break;
       case 's':
         if (!p.joined || !p.alive || m.life !== p.life) return;
-        p.x = num(m.x, -30, 30); p.y = num(m.y, -5, 30); p.z = num(m.z, -30, 30);
+        p.x = num(m.x, -ARENA - 2, ARENA + 2); p.y = num(m.y, -5, 30); p.z = num(m.z, -ARENA - 2, ARENA + 2);
         p.yaw = num(m.yaw, -1e4, 1e4); p.pitch = num(m.pitch, -1.6, 1.6);
         p.crouch = !!m.c; p.w = [1, 2, 3, 4, 5, 6].includes(m.w) ? m.w : 0;
         break;
@@ -817,7 +856,7 @@ const canvas = renderer.domElement;
 const FOG = 0xc7d9e8; // trùng màu chân trời của bầu trời
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(FOG);
-scene.fog = new THREE.Fog(FOG, 45, 170);
+scene.fog = new THREE.Fog(FOG, 70, 200);
 const camera = new THREE.PerspectiveCamera(80, innerWidth / innerHeight, 0.05, 400);
 camera.rotation.order = 'YXZ';
 const SUN_DIR = new THREE.Vector3(0.45, 0.72, 0.32).normalize();
@@ -826,7 +865,7 @@ scene.add(hemi);
 const sun = new THREE.DirectionalLight(0xfff0dc, 3.4);
 sun.position.copy(SUN_DIR).multiplyScalar(45); sun.castShadow = true;
 sun.shadow.mapSize.set(GFX.high ? 4096 : 1024, GFX.high ? 4096 : 1024);
-Object.assign(sun.shadow.camera, { left: -32, right: 32, top: 32, bottom: -32, near: 1, far: 110 });
+Object.assign(sun.shadow.camera, { left: -46, right: 46, top: 46, bottom: -46, near: 1, far: 140 });
 sun.shadow.bias = -0.0003; sun.shadow.normalBias = 0.03;
 scene.add(sun);
 
@@ -1030,9 +1069,9 @@ for (const b of BOXES) {
   }
 }
 { // sàn đấu trường
-  const ft = TEX.floor.clone(); ft.repeat.set(26, 26); ft.needsUpdate = true;
-  const fn = NRM.floor.clone(); fn.repeat.set(26, 26); fn.needsUpdate = true;
-  const floor = new THREE.Mesh(new THREE.PlaneGeometry(52, 52), new THREE.MeshStandardMaterial({ map: ft, normalMap: fn, roughness: 0.92, envMapIntensity: 0.6 }));
+  const ft = TEX.floor.clone(); ft.repeat.set(ARENA + 1, ARENA + 1); ft.needsUpdate = true;
+  const fn = NRM.floor.clone(); fn.repeat.set(ARENA + 1, ARENA + 1); fn.needsUpdate = true;
+  const floor = new THREE.Mesh(new THREE.PlaneGeometry(ARENA * 2 + 2, ARENA * 2 + 2), new THREE.MeshStandardMaterial({ map: ft, normalMap: fn, roughness: 0.92, envMapIntensity: 0.6 }));
   floor.rotation.x = -Math.PI / 2; floor.receiveShadow = true; scene.add(floor);
 }
 { // cảnh xa ngoài tường: đồng cỏ, rừng cây, dãy núi
@@ -1041,7 +1080,7 @@ for (const b of BOXES) {
   const mtnMat = new THREE.MeshStandardMaterial({ color: 0x5d7158, roughness: 1, flatShading: true });
   const snowMat = new THREE.MeshStandardMaterial({ color: 0xe8eef2, roughness: 0.9, flatShading: true });
   for (let i = 0; i < 34; i++) {
-    const a = i / 34 * Math.PI * 2 + rnd(-0.05, 0.05), r = rnd(120, 175), h = rnd(22, 60), w = rnd(18, 34);
+    const a = i / 34 * Math.PI * 2 + rnd(-0.05, 0.05), r = rnd(140, 190), h = rnd(22, 60), w = rnd(18, 34);
     const m = new THREE.Mesh(new THREE.ConeGeometry(w, h, 7, 1), mtnMat);
     m.position.set(Math.cos(a) * r, h / 2 - 3, Math.sin(a) * r); m.rotation.y = rnd(0, 6); scene.add(m);
     if (h > 45) { const cap = new THREE.Mesh(new THREE.ConeGeometry(w * 0.3, h * 0.3, 7, 1), snowMat); cap.position.set(m.position.x, h - 3 - h * 0.15 + 0.2, m.position.z); cap.rotation.y = m.rotation.y; scene.add(cap); }
@@ -1052,7 +1091,7 @@ for (const b of BOXES) {
   const leaves2 = new THREE.InstancedMesh(new THREE.ConeGeometry(1.6, 4.5, 7), new THREE.MeshStandardMaterial({ color: 0x4a7a40, roughness: 0.95, flatShading: true }), N);
   const mtx = new THREE.Matrix4(), q = new THREE.Quaternion(), sc = new THREE.Vector3(), ps = new THREE.Vector3();
   for (let i = 0; i < N; i++) {
-    const a = rnd(0, Math.PI * 2), r = rnd(31, 90), k = rnd(0.8, 1.6);
+    const a = rnd(0, Math.PI * 2), r = rnd(ARENA + 7, 115), k = rnd(0.8, 1.6);
     const x = Math.cos(a) * r, z = Math.sin(a) * r;
     q.setFromAxisAngle(new THREE.Vector3(0, 1, 0), rnd(0, 6)); sc.set(k, k, k);
     trunk.setMatrixAt(i, mtx.compose(ps.set(x, 1.5 * k, z), q, sc));
@@ -2488,7 +2527,7 @@ function frame() {
   if (inGame && myId !== null) update(dt);
   else {
     const t = performance.now() / 1000 * 0.08;
-    camera.position.set(Math.sin(t) * 24, 10, Math.cos(t) * 24); camera.lookAt(0, 1, 0);
+    camera.position.set(Math.sin(t) * 34, 15, Math.cos(t) * 34); camera.lookAt(0, 1, 0);
     vm.visible = false;
   }
   sky.position.copy(camera.position);
