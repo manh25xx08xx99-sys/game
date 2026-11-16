@@ -121,6 +121,8 @@
         <option value="rounds">Đấu round 2 phe — XANH vs ĐỎ, chết chờ round sau</option>
         <option value="pvp">Người với người 2 phe — tự chọn phe, không có bot</option>
       </select>
+      <label for="map" style="margin-top:8px;display:block">Bản đồ</label>
+      <select id="map"></select>
       <div id="botopts" class="row hidden" style="margin-top:8px;align-items:center">
         <span id="botnlabel" style="font-size:13px;color:#aab3c2">Số bot</span>
         <input id="botn" type="number" min="0" max="20" value="6" style="width:80px;flex:none">
@@ -248,11 +250,7 @@ const BOT_MAX = 20, BOT_COLOR = 0x8e2b22;
 // ---- Chế độ round 2 phe ----
 const ROUND = { pre: 4000, time: 120000, end: 5000, win: 7 }; // chuẩn bị 4s, mỗi round tối đa 2 phút, thắng 7 round = thắng trận
 const TEAM_NAME = ['', 'XANH', 'ĐỎ'], TEAM_COLOR = [0, 0x2f6fd6, 0xc0392b];
-const TEAM_SPAWNS = { 1: [], 2: [] };
-for (const z of [37.6, 36.4]) for (const x of [-11, -8, -5, -2, 1, 4, 7, 10]) {
-  TEAM_SPAWNS[1].push({ x, y: 0, z: -z, yaw: Math.PI }); // phe XANH ở phía Bắc, nhìn về giữa
-  TEAM_SPAWNS[2].push({ x, y: 0, z, yaw: 0 });          // phe ĐỎ ở phía Nam
-}
+const TEAM_SPAWNS = { 1: [], 2: [] }; // điền theo bản đồ (buildMapData)
 const BOT_DIFF = [
   { err: 0.085, react: 0.95, rate: 4.0, turn: 3.5, speed: 4.4 },   // Dễ
   { err: 0.05, react: 0.55, rate: 2.6, turn: 6, speed: 5.2 },      // Thường
@@ -263,77 +261,138 @@ const HOST_WCODE = { knife: 0, pistol: 1, sniper: 3, ak: 5, bow: 6 };
 const gauss = () => (Math.random() + Math.random() + Math.random() + Math.random() - 2) * 1.73;
 const angDiff = (a, b) => { let d = (a - b) % (Math.PI * 2); if (d > Math.PI) d -= Math.PI * 2; if (d < -Math.PI) d += Math.PI * 2; return d; };
 
-const BOXES = [];
+// =====================================================================
+// Bản đồ: chủ phòng chọn, mọi người dựng lại giống nhau
+// =====================================================================
+const BOXES = [], COLL = [], SPAWNS = [], ITEM_SPOTS = [], BOT_WAYPOINTS = [];
+let ARENA = 25, mapId = '';
 const add = (x1, y1, z1, x2, y2, z2, type = 'crate') =>
   BOXES.push([Math.min(x1, x2), y1, Math.min(z1, z2), Math.max(x1, x2), y2, Math.max(z1, z2), type]);
 const rot = (x, z, k) => { for (let i = 0; i < k; i++) [x, z] = [-z, x]; return [x, z]; };
+// lặp 4 phía (xoay 90°) / 2 phía (xoay 180°) cho công bằng
 const add4 = (x1, y1, z1, x2, y2, z2, type) => {
   for (let k = 0; k < 4; k++) { const [ax, az] = rot(x1, z1, k), [bx, bz] = rot(x2, z2, k); add(ax, y1, az, bx, y2, bz, type); }
 };
-// tường bao (bản đồ 80 x 80 m)
-const ARENA = 40;
-add(-ARENA - 1, 0, -ARENA - 1, ARENA + 1, 6, -ARENA, 'wall'); add(-ARENA - 1, 0, ARENA, ARENA + 1, 6, ARENA + 1, 'wall');
-add(-ARENA - 1, 0, -ARENA, -ARENA, 6, ARENA, 'wall'); add(ARENA, 0, -ARENA, ARENA + 1, 6, ARENA, 'wall');
-// ---- vòng ngoài (mở rộng) ----
-// tường đổ nát chỗ tường bao cũ: chia khu giữa và vòng ngoài, chừa lối đi ở giữa và ở góc
-add4(-18, 0, 25, -7.5, 3, 25.8, 'wall2');
-add4(7.5, 0, 25, 13, 3, 25.8, 'wall2');
-// container + bậc lên
-add4(-11, 0, 30, -4.5, 2.6, 32.5, 'container');
-add4(-4.4, 0, 30.6, -3.4, 1, 31.6, 'crate');
-// cụm thùng gỗ
-add4(3, 0, 29, 5, 2, 31, 'crate');
-// bao cát che chắn trước điểm xuất phát
-add4(-4, 0, 33.5, 4, 0.95, 34.3, 'sandbag');
-// cột bê tông lớn
-add4(14, 0, 32, 15.8, 5, 33.8, 'pillar');
-// tháp thùng ở góc + bậc
-add4(31, 0, 31, 36, 2.6, 36, 'crate2');
-add4(29.9, 0, 33, 31, 1, 34, 'crate');
-// container dọc ở hông
-add4(28, 0, 12, 30.5, 2.6, 18.5, 'container');
-add4(30.6, 0, 16, 31.6, 1, 17, 'crate');
-
-// bục giữa + bậc thang Bắc/Nam
-add(-4, 0, -4, 4, 1.6, 4, 'concrete');
-for (const s of [1, -1]) for (let i = 0; i < 3; i++) {
-  const h = 0.4 * (i + 1), z0 = 4 + 0.6 * (2 - i);
-  add(-1.5, 0, s * z0, 1.5, h, s * (z0 + 0.6), 'concrete');
+const add2 = (x1, y1, z1, x2, y2, z2, type) => { add(x1, y1, z1, x2, y2, z2, type); add(-x1, y1, -z1, -x2, y2, -z2, type); };
+// khu giữa đấu trường (dùng cho bản nhỏ và bản lớn)
+function arenaCore() {
+  add(-4, 0, -4, 4, 1.6, 4, 'concrete');                 // bục giữa + bậc thang Bắc/Nam
+  for (const s of [1, -1]) for (let i = 0; i < 3; i++) {
+    const h = 0.4 * (i + 1), z0 = 4 + 0.6 * (2 - i);
+    add(-1.5, 0, s * z0, 1.5, h, s * (z0 + 0.6), 'concrete');
+  }
+  add4(-0.8, 0, 14.2, 0.8, 5, 15.8, 'pillar');
+  add4(9, 0, 9, 11, 2, 11, 'crate');
+  add4(11, 0, 9.5, 12, 1, 10.5, 'crate');
+  add4(5, 0, 13, 8, 1.1, 13.5, 'concrete');
+  add4(-3, 0, 19, 3, 1.1, 19.6, 'concrete');
+  add4(18, 0, 18, 22, 2.6, 22, 'crate2');
+  add4(16.8, 0, 19.5, 18, 1, 20.5, 'crate');
+  add4(14, 0, 4, 16.5, 2.6, 10, 'container');    // container
+  add4(16.5, 0, 6.5, 17.5, 1, 7.5, 'crate');      // bậc lên container
+  add4(9, 0, -2.5, 9.6, 2.4, 2.5, 'wall2');       // tường giữa đường (chắn đạn)
+  add4(20, 0, 1.5, 20.8, 0.9, 5.5, 'sandbag');    // bao cát
 }
-// vật cản lặp 4 phía
-add4(-0.8, 0, 14.2, 0.8, 5, 15.8, 'pillar');
-add4(9, 0, 9, 11, 2, 11, 'crate');
-add4(11, 0, 9.5, 12, 1, 10.5, 'crate');
-add4(5, 0, 13, 8, 1.1, 13.5, 'concrete');
-add4(-3, 0, 19, 3, 1.1, 19.6, 'concrete');
-add4(18, 0, 18, 22, 2.6, 22, 'crate2');
-add4(16.8, 0, 19.5, 18, 1, 20.5, 'crate');
-// --- vật cản mới ---
-add4(14, 0, 4, 16.5, 2.6, 10, 'container');    // container
-add4(16.5, 0, 6.5, 17.5, 1, 7.5, 'crate');      // bậc lên container
-add4(9, 0, -2.5, 9.6, 2.4, 2.5, 'wall2');       // tường giữa đường (chắn đạn)
-add4(20, 0, 1.5, 20.8, 0.9, 5.5, 'sandbag');    // bao cát gần điểm hồi sinh
-const SPAWNS = [];
-for (let k = 0; k < 4; k++) for (const [x, z] of [[22, 8], [8, 22], [37, 10], [10, 37], [24, 36]]) {
-  const [rx, rz] = rot(x, z, k); SPAWNS.push({ x: rx, y: 0, z: rz, yaw: Math.atan2(rx, rz) });
-}
-const COLL = BOXES.concat([[-200, -10, -200, 200, 0, 200, 'floor']]);
-// Các vị trí có thể xuất hiện vật phẩm (trên sàn, trên thùng, container, tháp, bục giữa)
-const ITEM_SPOTS = [[0, 1.6, 0]];
-for (let k = 0; k < 4; k++) {
-  for (const [x, y, z] of [[10, 2, 10], [15.25, 2.6, 7], [20, 2.6, 20], [6, 0, 0], [13, 0, 12], [0, 0, 11], [21, 0, 12], [3, 0, 16],
-    [33.5, 2.6, 33.5], [-7.75, 2.6, 31.25], [4, 2, 30], [0, 0, 29], [24, 0, 34], [33, 0, 24], [36, 0, 0]]) {
+const ARENA_ITEMS = [[10, 2, 10], [15.25, 2.6, 7], [20, 2.6, 20], [6, 0, 0], [13, 0, 12], [0, 0, 11], [21, 0, 12], [3, 0, 16]];
+// size = nửa cạnh (m), sym = số lần lặp đối xứng của spawns/items, team = khoảng cách điểm xuất phát 2 phe
+const MAPS = {
+  small: {
+    name: 'Đấu trường nhỏ — 50×50 m', size: 25, sym: 4, team: [22.8, 21.6], itemMax: 8, center: [0, 1.6, 0],
+    spawns: [[22, 8], [8, 22]], items: ARENA_ITEMS,
+    build: arenaCore,
+  },
+  yard: {
+    name: 'Bãi container — 56×56 m, nhiều ngõ hẹp', size: 28, sym: 2, team: [25.6, 24.4], itemMax: 10, center: [0, 1.1, 0],
+    spawns: [[25, 10], [-25, 10], [12, 25], [-12, 25], [0, 19]],
+    items: [[-16, 2.6, 7.25], [6, 0, 11], [1, 2, 14], [0, 0, 10], [11, 0, 0], [19, 0, 12], [24, 2.6, 22], [-6, 0, 14], [-24, 2.6, 22]],
+    build() {
+      add(-1.5, 0, -1.5, 1.5, 1.1, 1.5, 'concrete');          // khối bê tông giữa
+      add2(4, 0, -0.3, 8, 1.1, 0.3, 'concrete');              // tường thấp giữa đường
+      // 2 dãy container chia bãi thành các ngõ
+      add2(-19, 0, 6, -13, 2.6, 8.5, 'container');
+      add2(-9, 0, 6, -3, 2.6, 8.5, 'container');
+      add2(3, 0, 6, 9, 2.6, 8.5, 'container');
+      add2(13, 0, 6, 19, 2.6, 8.5, 'container');
+      add2(13, 2.6, 6, 19, 5.2, 8.5, 'container');            // container chồng 2 tầng
+      add2(-12.9, 0, 6.5, -11.9, 1, 7.5, 'crate');            // bậc leo lên container
+      add2(22, 0, -3, 24.5, 2.6, 3, 'container');             // container dọc 2 bên hông
+      add2(-13, 0, -1, -11.4, 5, 0.6, 'pillar');
+      add2(0, 0, 13, 2, 2, 15, 'crate'); add2(-1, 0, 13.5, 0, 1, 14.5, 'crate');
+      add2(-14, 0, 14, -12, 2, 16, 'crate');
+      add2(14, 0, 13, 14.6, 2.4, 18, 'wall2');
+      add2(8, 0, 15, 8.8, 1.2, 15.8, 'barrel'); add2(-8, 0, 18, -7.2, 1.2, 18.8, 'barrel');
+      add2(-5, 0, 21.5, 5, 0.95, 22.3, 'sandbag');            // bao cát trước chỗ xuất phát
+      add2(22, 0, 20, 26, 2.6, 24, 'crate2'); add2(20.9, 0, 21, 22, 1, 22, 'crate');   // tháp thùng 4 góc
+      add2(-26, 0, 20, -22, 2.6, 24, 'crate2'); add2(-22, 0, 21, -20.9, 1, 22, 'crate');
+    },
+  },
+  town: {
+    name: 'Khu phố — 60×60 m, nhà và ngõ', size: 30, sym: 4, team: [27.6, 26.4], itemMax: 10, center: null,
+    spawns: [[27, 4], [4, 27], [27, 27]],
+    items: [[1.8, 0.8, 1.8], [20, 2, 20], [16, 0, 4], [4, 0, 20], [26, 0, 26], [20, 0, 15.5], [11, 0, 15.5]],
+    build() {
+      add(-2.5, 0, -2.5, 2.5, 0.8, 2.5, 'concrete');          // đài phun nước giữa quảng trường
+      add(-0.6, 0.8, -0.6, 0.6, 2.6, 0.6, 'pillar');
+      add4(8, 0, 8, 15, 4.5, 14, 'wall');                     // các dãy nhà
+      add4(8, 0, 17, 13, 4.5, 24, 'wall');
+      add4(18, 0, 8, 24, 4.5, 13, 'wall');
+      add4(19, 0, 19, 21, 2, 21, 'crate'); add4(21, 0, 19.5, 22, 1, 20.5, 'crate');   // sân sau
+      add4(16, 0, 16, 16.8, 1.2, 16.8, 'barrel');
+      add4(24, 0, 16, 24.8, 0.95, 20, 'sandbag');
+      add4(3, 0, 10, 4, 1.1, 13, 'concrete');                 // chỗ nấp giữa đường
+      add4(-5, 0, 16, -3.5, 1.5, 17.5, 'crate');
+    },
+  },
+  big: {
+    name: 'Đấu trường lớn — 80×80 m', size: 40, sym: 4, team: [37.6, 36.4], itemMax: 12, center: [0, 1.6, 0],
+    spawns: [[22, 8], [8, 22], [37, 10], [10, 37], [24, 36]],
+    items: ARENA_ITEMS.concat([[33.5, 2.6, 33.5], [-7.75, 2.6, 31.25], [4, 2, 30], [0, 0, 29], [24, 0, 34], [33, 0, 24], [36, 0, 0]]),
+    build() {
+      arenaCore();
+      // tường đổ nát chỗ tường bao cũ, chừa lối đi ở giữa và ở góc
+      add4(-18, 0, 25, -7.5, 3, 25.8, 'wall2');
+      add4(7.5, 0, 25, 13, 3, 25.8, 'wall2');
+      add4(-11, 0, 30, -4.5, 2.6, 32.5, 'container'); add4(-4.4, 0, 30.6, -3.4, 1, 31.6, 'crate');
+      add4(3, 0, 29, 5, 2, 31, 'crate');
+      add4(-4, 0, 33.5, 4, 0.95, 34.3, 'sandbag');
+      add4(14, 0, 32, 15.8, 5, 33.8, 'pillar');
+      add4(31, 0, 31, 36, 2.6, 36, 'crate2'); add4(29.9, 0, 33, 31, 1, 34, 'crate');
+      add4(28, 0, 12, 30.5, 2.6, 18.5, 'container'); add4(30.6, 0, 16, 31.6, 1, 17, 'crate');
+    },
+  },
+};
+const MAP_IDS = ['small', 'yard', 'town', 'big'];
+function buildMapData(id) {
+  const M = MAPS[id] || MAPS.small; mapId = MAPS[id] ? id : 'small'; ARENA = M.size;
+  BOXES.length = COLL.length = SPAWNS.length = ITEM_SPOTS.length = BOT_WAYPOINTS.length = 0;
+  TEAM_SPAWNS[1].length = TEAM_SPAWNS[2].length = 0;
+  add(-ARENA - 1, 0, -ARENA - 1, ARENA + 1, 6, -ARENA, 'wall'); add(-ARENA - 1, 0, ARENA, ARENA + 1, 6, ARENA + 1, 'wall'); // tường bao
+  add(-ARENA - 1, 0, -ARENA, -ARENA, 6, ARENA, 'wall'); add(ARENA, 0, -ARENA, ARENA + 1, 6, ARENA, 'wall');
+  M.build();
+  COLL.push(...BOXES, [-200, -10, -200, 200, 0, 200, 'floor']);
+  const step = 4 / M.sym;
+  for (let k = 0; k < 4; k += step) for (const [x, z] of M.spawns) {
+    const [rx, rz] = rot(x, z, k); SPAWNS.push({ x: rx, y: 0, z: rz, yaw: Math.atan2(rx, rz) });
+  }
+  for (const z of M.team) for (const x of [-11, -8, -5, -2, 1, 4, 7, 10]) {
+    TEAM_SPAWNS[1].push({ x, y: 0, z: -z, yaw: Math.PI }); // phe XANH ở phía Bắc, nhìn về giữa
+    TEAM_SPAWNS[2].push({ x, y: 0, z, yaw: 0 });          // phe ĐỎ ở phía Nam
+  }
+  if (M.center) ITEM_SPOTS.push(M.center);
+  for (let k = 0; k < 4; k += step) for (const [x, y, z] of M.items) {
     const [rx, rz] = rot(x, z, k);
     if (!pointInMap(rx, y + 0.3, rz)) ITEM_SPOTS.push([rx, y, rz]);
   }
+  ITEM.max = M.itemMax;
+  BOT_WAYPOINTS.push(...SPAWNS.map(s => [s.x, s.z]), ...ITEM_SPOTS.filter(s => s[1] === 0).map(s => [s[0], s[2]]));
 }
+buildMapData('small');
 // độ cao mặt đất (bước lên được tối đa 0.46m) dưới chân bot
 function groundAt(x, z, y) {
   let g = 0;
   for (const b of COLL) if (x + RADIUS > b[0] && x - RADIUS < b[3] && z + RADIUS > b[2] && z - RADIUS < b[5] && b[4] <= y + 0.46 && b[4] > g) g = b[4];
   return g;
 }
-const BOT_WAYPOINTS = SPAWNS.map(s => [s.x, s.z]).concat(ITEM_SPOTS.filter(s => s[1] === 0).map(s => [s[0], s[2]]));
 // Mô phỏng quả bom (dùng chung cho host và client để đường bay giống nhau)
 function stepNade(n, dt) {
   const steps = Math.max(1, Math.ceil(dt / 0.01)), h = dt / steps;
@@ -609,7 +668,16 @@ class HostCore {
     });
     return id;
   }
-  welcome(id) { const p = this.players.get(id); if (p) this.to(p, { t: 'welcome', id, color: p.color }); }
+  welcome(id) { const p = this.players.get(id); if (p) this.to(p, { t: 'welcome', id, color: p.color, mp: mapId }); }
+  setMap(id) {
+    if (!MAPS[id] || id === mapId) return;
+    loadMap(id);
+    this.items = []; this.nextWave = Date.now() + 1500; this.nades = []; this.pending = []; this.spot = { 1: 0, 2: 0 };
+    this.bc({ t: 'map', id });
+    for (const p of this.players.values()) if (p.joined) { p.respawnAt = 0; this.spawn(p); } // ai cũng ra lại điểm xuất phát
+    if (this.mode === 'rounds') { this.rs.sc = [0, 0, 0]; this.rs.st = 'wait'; }
+    this.bc({ t: 'sys', msg: 'Đổi bản đồ: ' + MAPS[id].name });
+  }
   remove(id) {
     const p = this.players.get(id); if (!p) return;
     this.players.delete(id);
@@ -816,7 +884,7 @@ class HostCore {
     }
     const R = this.rs;
     const rd = this.mode === 'rounds' ? { n: R.n, st: R.st, left: Math.max(0, R.until - now), sc: [R.sc[1], R.sc[2]] } : undefined;
-    this.bc({ t: 'snap', md: this.mode, rd, p: list, it: this.items.map(i => [i.id, i.type, i.x, i.y, i.z]), iw: Math.max(0, this.nextWave - now) });
+    this.bc({ t: 'snap', md: this.mode, mp: mapId, rd, p: list, it: this.items.map(i => [i.id, i.type, i.x, i.y, i.z]), iw: Math.max(0, this.nextWave - now) });
   }
 }
 
@@ -1041,32 +1109,48 @@ const mats = {};
 const matFor = (st, color) => new THREE.MeshStandardMaterial({
   map: TEX[st.tex], normalMap: NRM[st.tex], color, roughness: st.rough, metalness: st.metal || 0, envMapIntensity: 0.8,
 });
-for (const b of BOXES) {
-  const [x1, y1, z1, x2, y2, z2, type] = b;
-  const st = STYLE[type];
-  const mat = type === 'container' ? matFor(st, CONTAINER_COLORS[containerIdx++ % 4]) : (mats[type] ??= matFor(st, st.color));
-  const geo = type === 'barrel'
-    ? new THREE.CylinderGeometry((x2 - x1) / 2, (x2 - x1) / 2, y2 - y1, 24)
-    : boxGeo(x2 - x1, y2 - y1, z2 - z1, st.tile);
-  const m = new THREE.Mesh(geo, mat);
-  m.position.set((x1 + x2) / 2, (y1 + y2) / 2, (z1 + z2) / 2);
-  m.castShadow = m.receiveShadow = true;
-  scene.add(m);
-  // chi tiết trang trí (không ảnh hưởng va chạm)
-  if (type === 'wall') { // gờ bê tông trên đỉnh tường
-    const cap = new THREE.Mesh(boxGeo(x2 - x1 + 0.3, 0.3, z2 - z1 + 0.3, 2), mats.capMat ??= matFor(STYLE.concrete, 0xd0d0cc));
-    cap.position.set((x1 + x2) / 2, y2 + 0.15, (z1 + z2) / 2); cap.castShadow = cap.receiveShadow = true; scene.add(cap);
+const mapGroup = new THREE.Group(); scene.add(mapGroup);
+let sceneMap = '';
+function buildMapScene() {
+  for (const o of [...mapGroup.children]) { mapGroup.remove(o); o.geometry?.dispose(); }
+  containerIdx = 0;
+  for (const b of BOXES) {
+    const [x1, y1, z1, x2, y2, z2, type] = b;
+    const st = STYLE[type];
+    const mat = type === 'container' ? matFor(st, CONTAINER_COLORS[containerIdx++ % 4]) : (mats[type] ??= matFor(st, st.color));
+    const geo = type === 'barrel'
+      ? new THREE.CylinderGeometry((x2 - x1) / 2, (x2 - x1) / 2, y2 - y1, 24)
+      : boxGeo(x2 - x1, y2 - y1, z2 - z1, st.tile);
+    const m = new THREE.Mesh(geo, mat);
+    m.position.set((x1 + x2) / 2, (y1 + y2) / 2, (z1 + z2) / 2);
+    m.castShadow = m.receiveShadow = true;
+    mapGroup.add(m);
+    // chi tiết trang trí (không ảnh hưởng va chạm)
+    if (type === 'wall') { // gờ bê tông trên đỉnh tường
+      const cap = new THREE.Mesh(boxGeo(x2 - x1 + 0.3, 0.3, z2 - z1 + 0.3, 2), mats.capMat ??= matFor(STYLE.concrete, 0xd0d0cc));
+      cap.position.set((x1 + x2) / 2, y2 + 0.15, (z1 + z2) / 2); cap.castShadow = cap.receiveShadow = true; mapGroup.add(cap);
+    }
+    if (type === 'barrel') { // nắp thùng phuy
+      const lid = new THREE.Mesh(new THREE.CylinderGeometry((x2 - x1) / 2 * 0.98, (x2 - x1) / 2 * 0.98, 0.02, 24), mats.lidMat ??= new THREE.MeshStandardMaterial({ color: 0x23507f, roughness: 0.4, metalness: 0.6 }));
+      lid.position.set((x1 + x2) / 2, y2 + 0.01, (z1 + z2) / 2); mapGroup.add(lid);
+    }
   }
-  if (type === 'barrel') { // nắp thùng phuy
-    const lid = new THREE.Mesh(new THREE.CylinderGeometry((x2 - x1) / 2 * 0.98, (x2 - x1) / 2 * 0.98, 0.02, 24), new THREE.MeshStandardMaterial({ color: 0x23507f, roughness: 0.4, metalness: 0.6 }));
-    lid.position.set((x1 + x2) / 2, y2 + 0.01, (z1 + z2) / 2); scene.add(lid);
-  }
-}
-{ // sàn đấu trường
+  // sàn đấu trường
   const ft = TEX.floor.clone(); ft.repeat.set(ARENA + 1, ARENA + 1); ft.needsUpdate = true;
   const fn = NRM.floor.clone(); fn.repeat.set(ARENA + 1, ARENA + 1); fn.needsUpdate = true;
   const floor = new THREE.Mesh(new THREE.PlaneGeometry(ARENA * 2 + 2, ARENA * 2 + 2), new THREE.MeshStandardMaterial({ map: ft, normalMap: fn, roughness: 0.92, envMapIntensity: 0.6 }));
-  floor.rotation.x = -Math.PI / 2; floor.receiveShadow = true; scene.add(floor);
+  floor.rotation.x = -Math.PI / 2; floor.receiveShadow = true; mapGroup.add(floor);
+  // vùng bóng đổ vừa với bản đồ
+  const sb = ARENA + 6;
+  Object.assign(sun.shadow.camera, { left: -sb, right: sb, top: sb, bottom: -sb }); sun.shadow.camera.updateProjectionMatrix();
+  sceneMap = mapId;
+}
+buildMapScene();
+// đổi bản đồ (cả chủ phòng lẫn người vào phòng)
+function loadMap(id) {
+  if (!MAPS[id] || (id === mapId && sceneMap === id)) return;
+  buildMapData(id); buildMapScene();
+  for (const m of itemMeshes.values()) scene.remove(m); itemMeshes.clear();
 }
 { // cảnh xa ngoài tường: đồng cỏ, rừng cây, dãy núi
   const grass = new THREE.Mesh(new THREE.PlaneGeometry(800, 800), new THREE.MeshStandardMaterial({ color: 0x5f7a45, roughness: 1 }));
@@ -1085,7 +1169,7 @@ for (const b of BOXES) {
   const leaves2 = new THREE.InstancedMesh(new THREE.ConeGeometry(1.6, 4.5, 7), new THREE.MeshStandardMaterial({ color: 0x4a7a40, roughness: 0.95, flatShading: true }), N);
   const mtx = new THREE.Matrix4(), q = new THREE.Quaternion(), sc = new THREE.Vector3(), ps = new THREE.Vector3();
   for (let i = 0; i < N; i++) {
-    const a = rnd(0, Math.PI * 2), r = rnd(ARENA + 7, 115), k = rnd(0.8, 1.6);
+    const a = rnd(0, Math.PI * 2), r = rnd(47, 115), k = rnd(0.8, 1.6);
     const x = Math.cos(a) * r, z = Math.sin(a) * r;
     q.setFromAxisAngle(new THREE.Vector3(0, 1, 0), rnd(0, 6)); sc.set(k, k, k);
     trunk.setMatrixAt(i, mtx.compose(ps.set(x, 1.5 * k, z), q, sc));
@@ -2015,6 +2099,7 @@ function hostGame() {
   initAudio();
   isHost = true; roomCode = myRoomCode();
   core = new HostCore();
+  core.setMap($('map').value);
   core.add((m) => onMsg(m), false);   // người chơi của chủ phòng (id 1)
   core.welcome(1);
   applyMode();
@@ -2103,8 +2188,10 @@ const muzzleOf = (pos, yaw, pitch, crouch) => {
 
 function onMsg(m) {
   switch (m.t) {
-    case 'welcome': myId = m.id; myColor = m.color; break;
+    case 'welcome': myId = m.id; myColor = m.color; if (m.mp) loadMap(m.mp); break;
+    case 'map': loadMap(m.id); break;
     case 'snap': {
+      if (m.mp && m.mp !== mapId) loadMap(m.mp);
       lastSnap = m.p; gameMode = m.md || 'ffa'; roundInfo = m.rd || null; roundInfoAt = performance.now();
       myTeam = (m.p.find(s => s.id === myId) || {}).tm || 0;
       const seen = new Set();
@@ -2523,7 +2610,7 @@ function frame() {
   if (inGame && myId !== null) update(dt);
   else {
     const t = performance.now() / 1000 * 0.08;
-    camera.position.set(Math.sin(t) * 34, 15, Math.cos(t) * 34); camera.lookAt(0, 1, 0);
+    camera.position.set(Math.sin(t) * (ARENA * 0.85 + 4), 8 + ARENA * 0.18, Math.cos(t) * (ARENA * 0.85 + 4)); camera.lookAt(0, 1, 0);
     vm.visible = false;
   }
   sky.position.copy(camera.position);
@@ -2562,6 +2649,13 @@ function applyGfx(high) {
 }
 $('gfx').value = GFX.high ? 'high' : 'low';
 $('mode').value = ['bots', 'rounds', 'pvp'].includes(store.get('ka_mode', 'ffa')) ? store.get('ka_mode', 'ffa') : 'ffa';
+for (const id of MAP_IDS) { const o = document.createElement('option'); o.value = id; o.textContent = MAPS[id].name; $('map').append(o); }
+$('map').value = MAPS[store.get('ka_map', 'small')] ? store.get('ka_map', 'small') : 'small';
+loadMap($('map').value);
+$('map').addEventListener('change', () => {
+  const id = $('map').value; store.set('ka_map', id);
+  if (isHost && core) core.setMap(id); else if (!inGame) loadMap(id); // chưa vào phòng: xem trước bản đồ
+});
 $('team').value = ['0', '1', '2'].includes(store.get('ka_team', '0')) ? store.get('ka_team', '0') : '0';
 $('team').addEventListener('change', () => { store.set('ka_team', $('team').value); if (inGame) net({ t: 'team', tm: +$('team').value || 0 }); });
 $('botn').value = store.get('ka_botn', '6'); $('botd').value = ['0', '1', '2'].includes(store.get('ka_botd', '1')) ? store.get('ka_botd', '1') : '1';
@@ -2576,7 +2670,7 @@ addEventListener('resize', () => {
   composer?.setSize(innerWidth, innerHeight);
 });
 addEventListener('beforeunload', () => { try { peer?.destroy(); } catch { /* ignore */ } });
-window.KA = { P, remotes, get core() { return core; }, scene, switchWeapon, fire, doEmote, tryAttack, setMouseL: (v) => { mouseL = v; if (!v && weapon === 'ak') wantFire = 0; }, get ammo() { return ammo; }, throwNade, startNadeCharge, releaseNade, get nadeHold() { return nadeHold; }, forceAds: false, forceInput: false, keys, step: (dt) => update(dt) }; // để debug
+window.KA = { P, remotes, get core() { return core; }, get map() { return mapId; }, scene, switchWeapon, fire, doEmote, tryAttack, setMouseL: (v) => { mouseL = v; if (!v && weapon === 'ak') wantFire = 0; }, get ammo() { return ammo; }, throwNade, startNadeCharge, releaseNade, get nadeHold() { return nadeHold; }, forceAds: false, forceInput: false, keys, step: (dt) => update(dt) }; // để debug
 frame();
 </script>
 </body>
