@@ -278,39 +278,22 @@ add(-ARENA - 1, 0, -ARENA, -ARENA, 6, ARENA, 'wall'); add(ARENA, 0, -ARENA, AREN
 // tường đổ nát chỗ tường bao cũ: chia khu giữa và vòng ngoài, chừa lối đi ở giữa và ở góc
 add4(-18, 0, 25, -7.5, 3, 25.8, 'wall2');
 add4(7.5, 0, 25, 13, 3, 25.8, 'wall2');
-add4(15, 0, 25, 18, 1.2, 25.8, 'sandbag');    // đoạn tường sập còn thấp (nhảy qua / ngồi nấp)
 // container + bậc lên
 add4(-11, 0, 30, -4.5, 2.6, 32.5, 'container');
 add4(-4.4, 0, 30.6, -3.4, 1, 31.6, 'crate');
 // cụm thùng gỗ
 add4(3, 0, 29, 5, 2, 31, 'crate');
-add4(5, 0, 29.5, 6, 1, 30.5, 'crate');
-add4(2.2, 0, 31, 3, 1, 31.8, 'crate');
 // bao cát che chắn trước điểm xuất phát
 add4(-4, 0, 33.5, 4, 0.95, 34.3, 'sandbag');
-add4(-9.5, 0, 34.6, -8.5, 1.2, 35.6, 'barrel');
-add4(8.6, 0, 34.6, 9.4, 1.2, 35.4, 'barrel');
 // cột bê tông lớn
 add4(14, 0, 32, 15.8, 5, 33.8, 'pillar');
-add4(-22, 0, 28, -20.4, 5, 29.6, 'pillar');
-// tường chữ L
-add4(20, 0, 27, 20.6, 2.4, 31.5, 'wall2');
-add4(20.6, 0, 30.9, 24, 2.4, 31.5, 'wall2');
-// thùng phuy rải rác
-add4(10, 0, 27.5, 10.8, 1.2, 28.3, 'barrel');
-add4(11.2, 0, 28, 12, 1.2, 28.8, 'barrel');
-add4(-17, 0, 35, -16.2, 1.2, 35.8, 'barrel');
 // tháp thùng ở góc + bậc
 add4(31, 0, 31, 36, 2.6, 36, 'crate2');
 add4(29.9, 0, 33, 31, 1, 34, 'crate');
 // container dọc ở hông
 add4(28, 0, 12, 30.5, 2.6, 18.5, 'container');
 add4(30.6, 0, 16, 31.6, 1, 17, 'crate');
-// thùng gỗ ở cánh hông
-add4(33, 0, 4, 35, 2, 6, 'crate');
-add4(34, 0, 6, 35, 1, 7, 'crate');
-add4(27, 0, 3, 27.6, 2.4, 8, 'wall2');
-add4(25.5, 0, 22, 27, 1.1, 23.5, 'crate');
+
 // bục giữa + bậc thang Bắc/Nam
 add(-4, 0, -4, 4, 1.6, 4, 'concrete');
 for (const s of [1, -1]) for (let i = 0; i < 3; i++) {
@@ -329,10 +312,7 @@ add4(16.8, 0, 19.5, 18, 1, 20.5, 'crate');
 add4(14, 0, 4, 16.5, 2.6, 10, 'container');    // container
 add4(16.5, 0, 6.5, 17.5, 1, 7.5, 'crate');      // bậc lên container
 add4(9, 0, -2.5, 9.6, 2.4, 2.5, 'wall2');       // tường giữa đường (chắn đạn)
-add4(3.6, 0, 7.6, 4.4, 1.2, 8.4, 'barrel');     // thùng phuy
-add4(6.2, 0, 5.4, 7, 1.2, 6.2, 'barrel');
 add4(20, 0, 1.5, 20.8, 0.9, 5.5, 'sandbag');    // bao cát gần điểm hồi sinh
-add4(12.5, 0, 15.5, 13.5, 1, 16.5, 'crate');
 const SPAWNS = [];
 for (let k = 0; k < 4; k++) for (const [x, z] of [[22, 8], [8, 22], [37, 10], [10, 37], [24, 36]]) {
   const [rx, rz] = rot(x, z, k); SPAWNS.push({ x: rx, y: 0, z: rz, yaw: Math.atan2(rx, rz) });
@@ -383,6 +363,17 @@ function rayAABB(ox, oy, oz, dx, dy, dz, b) {
     if (t0 > t1) return Infinity;
   }
   return t0;
+}
+// AK + súng bắn tỉa: đạn xuyên thùng gỗ (mỗi lớp gỗ giảm 25% sát thương), vẫn bị chặn bởi tường, bê tông, container
+const WOOD = new Set(['crate', 'crate2']);
+const PIERCE = new Set(['ak', 'sniper']);
+function rayMapPierce(ox, oy, oz, dx, dy, dz, maxT) {
+  let best = maxT; const woods = [];
+  for (const b of COLL) {
+    const t = rayAABB(ox, oy, oz, dx, dy, dz, b);
+    if (WOOD.has(b[6])) { if (t < maxT) woods.push(t); } else if (t < best) best = t;
+  }
+  return { t: best, woods: woods.filter(t => t < best).sort((a, b) => a - b) };
 }
 function rayMap(ox, oy, oz, dx, dy, dz, maxT) {
   let best = maxT;
@@ -692,7 +683,8 @@ class HostCore {
     const G = GUNS[gun];
     const [dx, dy, dz] = dirOf(yaw, pitch);
     const ox = p.x, oy = this.eyeY(p), oz = p.z;
-    let tEnd = rayMap(ox, oy, oz, dx, dy, dz, G.range), hitP = null;
+    const pr = PIERCE.has(gun) ? rayMapPierce(ox, oy, oz, dx, dy, dz, G.range) : null;
+    let tEnd = pr ? pr.t : rayMap(ox, oy, oz, dx, dy, dz, G.range), hitP = null;
     for (const t of this.players.values()) {
       if (t === p || !t.joined || !t.alive || (p.team && t.team === p.team)) continue; // đạn xuyên qua đồng đội
       const th = t.crouch ? CROUCH_H : STAND_H, r = RADIUS + 0.05;
@@ -704,7 +696,9 @@ class HostCore {
     if (hitP) {
       const th = hitP.crouch ? CROUCH_H : STAND_H;
       const head = ey > hitP.y + th - 0.32;
-      this.damage(p, hitP, head ? G.head : G.body, { how: gun, head, x: ex, y: ey, z: ez });
+      const layers = pr ? pr.woods.filter(t => t < tEnd).length : 0; // số lớp gỗ đạn đã xuyên qua
+      const dmg = Math.round((head ? G.head : G.body) * Math.pow(0.75, layers));
+      this.damage(p, hitP, dmg, { how: gun, head, x: ex, y: ey, z: ez, wb: layers > 0 });
     }
   }
 
@@ -2351,7 +2345,8 @@ function fire() {
   net({ t: 'shoot', yaw, pitch, g: gun });
   const [dx, dy, dz] = dirOf(yaw, pitch);
   const ox = P.pos.x, oy = P.pos.y + eyeHeight(), oz = P.pos.z;
-  let t = rayMap(ox, oy, oz, dx, dy, dz, G.range), hitPlayer = false;
+  const pr = PIERCE.has(gun) ? rayMapPierce(ox, oy, oz, dx, dy, dz, G.range) : null;
+  let t = pr ? pr.t : rayMap(ox, oy, oz, dx, dy, dz, G.range), hitPlayer = false;
   for (const r of remotes.values()) {
     if (!r.alive) continue;
     const th = r.crouch ? CROUCH_H : STAND_H, rr = RADIUS + 0.05;
@@ -2363,6 +2358,7 @@ function fire() {
   if (gun === 'bow') shootBolt(muzzleOf(P.pos, P.yaw, P.pitch, P.crouch), end, !hitPlayer);
   else tracer(adsK > 0.6 && sniper ? new THREE.Vector3(ox + dx * 0.5, oy - 0.08, oz + dz * 0.5) : muzzleOf(P.pos, P.yaw, P.pitch, P.crouch), end, sniper);
   if (!hitPlayer) { burst(end.x, end.y, end.z, sniper ? 12 : 6, sparkMat, 3, 0.6); burst(end.x, end.y, end.z, sniper ? 8 : 4, dustMat, 1.5, 0.8); }
+  if (pr) for (const wt of pr.woods) if (wt < t) burst(ox + dx * wt, oy + dy * wt, oz + dz * wt, 6, dustMat, 2, 0.7); // mạt gỗ chỗ đạn xuyên
   if (sniper) {
     SFX.sniper(1); SFX.bolt(); vmPlay('sfire'); boltT = G.rate;
     setTimeout(() => { if (weapon === 'sniper' && boltT > 0 && reloadT <= 0) vmPlay('bolt'); }, 300); punch += 0.09; P.pitch = Math.min(1.55, P.pitch + 0.025); }
